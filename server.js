@@ -1,141 +1,120 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { MongoClient, ObjectId } from 'mongodb';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import cron from 'node-cron';
+
+import { connectDB, getCollections } from './server/config/db.js';
+import { escalatePriority } from './server/utils/complaintUtils.js';
+
+import authRoutes from './server/routes/authRoutes.js';
+import complaintRoutes from './server/routes/complaintRoutes.js';
+import workerRoutes from './server/routes/workerRoutes.js';
+import adminRoutes from './server/routes/adminRoutes.js';
+import superAdminRoutes from './server/routes/superAdminRoutes.js';
 
 dotenv.config();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const UPLOAD_DIR = path.join(__dirname, 'uploads');
 const app = express();
-const PORT = process.env.PORT || 4000;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017';
-const DB_NAME = process.env.DB_NAME || 'smart-hostel';
-
-app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173' }));
-app.use(express.json());
-
-const client = new MongoClient(MONGODB_URI);
-let db;
-let students;
-let complaints;
+const DEFAULT_PORT = parseInt(process.env.PORT) || 4001;
+let PORT = DEFAULT_PORT;
 
 const startServer = async () => {
   try {
-    await client.connect();
-    db = client.db(DB_NAME);
-    students = db.collection('students');
-    complaints = db.collection('complaints');
-
-    await students.createIndex({ email: 1 }, { unique: true });
-
-    app.post('/api/students/register', async (req, res) => {
-      const { email, password, name } = req.body;
-      if (!email || !password) {
-        return res.status(400).json({ message: 'Email and password are required.' });
-      }
-
-      const existing = await students.findOne({ email });
-      if (existing) {
-        return res.status(409).json({ message: 'Student already registered. Please login.' });
-      }
-
-      const student = { email, password, name: name || email.split('@')[0], role: 'Student', createdAt: new Date() };
-      await students.insertOne(student);
-      return res.json({ message: 'Registered successfully.' });
-    });
-
-    app.post('/api/students/login', async (req, res) => {
-      const { email, password } = req.body;
-      if (!email || !password) {
-        return res.status(400).json({ message: 'Email and password are required.' });
-      }
-
-      const student = await students.findOne({ email });
-      if (!student || student.password !== password) {
-        return res.status(401).json({ message: 'Invalid student credentials.' });
-      }
-
-      return res.json({ email: student.email, name: student.name, role: 'Student' });
-    });
-
-    const toJSON = (doc) => ({
-      ...doc,
-      _id: doc._id.toString(),
-    });
-
-    app.get('/api/complaints', async (req, res) => {
-      const list = await complaints.find().sort({ createdAt: -1 }).toArray();
-      return res.json(list.map(toJSON));
-    });
-
-    app.post('/api/complaints', async (req, res) => {
-      const { studentName, email, title, description, category, priority, location, contact } = req.body;
-      if (!studentName || !email || !title || !description) {
-        return res.status(400).json({ message: 'Missing complaint details.' });
-      }
-
-      const complaint = {
-        studentName,
-        email,
-        title,
-        description,
-        category,
-        priority,
-        location,
-        contact,
-        status: 'Pending',
-        assignedTo: 'Not assigned',
-        createdAt: new Date(),
-      };
-
-      const result = await complaints.insertOne(complaint);
-      return res.json({ _id: result.insertedId.toString(), ...complaint });
-    });
-
-    app.patch('/api/complaints/:id/status', async (req, res) => {
-      const { id } = req.params;
-      const { status } = req.body;
-      if (!status) {
-        return res.status(400).json({ message: 'Status value is required.' });
-      }
-
-      const result = await complaints.findOneAndUpdate(
-        { _id: new ObjectId(id) },
-        { $set: { status } },
-        { returnDocument: 'after' }
-      );
-
-      if (!result.value) {
-        return res.status(404).json({ message: 'Complaint not found.' });
-      }
-      return res.json(toJSON(result.value));
-    });
-
-    app.patch('/api/complaints/:id/assign', async (req, res) => {
-      const { id } = req.params;
-      const { assignedTo } = req.body;
-      if (!assignedTo) {
-        return res.status(400).json({ message: 'Worker name is required.' });
-      }
-
-      const result = await complaints.findOneAndUpdate(
-        { _id: new ObjectId(id) },
-        { $set: { assignedTo } },
-        { returnDocument: 'after' }
-      );
-
-      if (!result.value) {
-        return res.status(404).json({ message: 'Complaint not found.' });
-      }
-      return res.json(toJSON(result.value));
-    });
-
-    app.listen(PORT, () => {
-      console.log(`MongoDB backend running on http://localhost:${PORT}`);
-    });
+    await connectDB();
+    const listen = async () => {
+      const server = app.listen(PORT);
+      server.on('listening', () => {
+        console.log(`🚀 Server running on http://localhost:${PORT}`);
+        console.log(`📁 Image uploads served at http://localhost:${PORT}/uploads`);
+        console.log(`⏰ Auto-escalation cron job scheduled (daily at midnight)`);
+      });
+      server.on('error', async (err) => {
+        if (err.code === 'EADDRINUSE') {
+          console.warn(`Port ${PORT} in use, trying ${PORT + 1}`);
+          PORT += 1;
+          server.close();
+          await listen();
+        } else {
+          console.error('Server error:', err);
+          process.exit(1);
+        }
+      });
+    };
+    await listen();
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);
   }
 };
+
+app.use('/uploads', express.static(UPLOAD_DIR));
+
+app.use(express.static(path.join(__dirname, 'dist')));
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
+  origin: [
+    process.env.CLIENT_ORIGIN || 'http://localhost:5173',
+    'http://127.0.0.1:5173',
+  ],
+}));
+app.use(express.json());
+
+// Routes
+app.use('/api', authRoutes);
+app.use('/api/complaints', complaintRoutes);
+app.use('/api/admin/workers', workerRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/superadmin', superAdminRoutes);
+
+// CRON JOB: Auto Priority Escalation
+cron.schedule('0 0 * * *', async () => {
+  console.log('[CRON] Running priority escalation job...');
+  try {
+    const { complaints } = getCollections();
+    const fourDaysAgo = new Date();
+    fourDaysAgo.setDate(fourDaysAgo.getDate() - 4);
+
+    const staleComplaints = await complaints.find({
+      status: { $in: ['Pending', 'Assigned'] },
+      $or: [{ started_at: { $exists: false } }, { started_at: null }],
+      createdAt: { $lte: fourDaysAgo },
+    }).toArray();
+
+    let escalatedCount = 0;
+
+    for (const complaint of staleComplaints) {
+      const newPriority = escalatePriority(complaint.priority);
+      const shouldEscalate = newPriority !== complaint.priority || !complaint.delayed;
+
+      if (shouldEscalate) {
+        await complaints.updateOne(
+          { _id: complaint._id },
+          { 
+            $set: { 
+              priority: newPriority,
+              delayed: true,
+              escalated: true,
+              escalatedAt: new Date(),
+              lastUpdatedAt: new Date(),
+              superAdminNotification: `Complaint ID #${complaint._id} has not been processed for 4 days`,
+            }
+          }
+        );
+        escalatedCount++;
+      }
+    }
+    console.log(`[CRON] Completed. Escalated ${escalatedCount} complaints.`);
+  } catch (error) {
+    console.error('[CRON] Error during priority escalation:', error);
+  }
+});
+
+
 
 startServer();

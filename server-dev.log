@@ -1,0 +1,7 @@
+
+> smart-hostel-grievance-frontend@0.1.0 server
+> node server.js
+
+🚀 Server running on http://localhost:4000
+📁 Image uploads served at http://localhost:4000/uploads
+⏰ Auto-escalation cron job scheduled (daily at midnight)

@@ -1,953 +1,1764 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, Route, Routes, useNavigate } from 'react-router-dom';
 import {
+  AlertTriangle,
   ArrowRight,
+  BarChart3,
+  BadgeCheck,
+  Bell,
+  CalendarClock,
+  Camera,
+  CheckCircle2,
   ClipboardList,
+  Clock,
+  Eye,
+  EyeOff,
+  FileImage,
+  Gauge,
   Home,
+  Image,
+  LayoutDashboard,
   ListChecks,
+  Lock,
+  LogOut,
+  Plus,
+  Search,
   ShieldCheck,
   Sparkles,
-  CheckCircle2,
-  Loader2,
-  UserCheck,
+  Trash2,
+  Upload,
+  UserCog,
   Users,
-  Edit3,
-  Bell,
-  BadgeCheck,
-  Tag,
+  Wrench,
+  X,
+  AlertCircle,
+  Loader,
 } from 'lucide-react';
+import { getToken, getUser, setAuth, clearAuth, validateEmail, validatePassword, validatePhone } from './utils/auth';
+import { API_BASE, API_ENDPOINTS } from './utils/api';
+import useApi from './hooks/useApi';
+import { AnalyticsChart } from './components/features/AnalyticsChart';
+import { ImageGallery } from './components/common/ImageGallery';
+import { Pagination } from './components/common/Pagination';
 
-const features = [
-  { title: 'Submit complaints easily', icon: Home, description: 'Create complaints from any device in seconds.' },
-  { title: 'Track complaint status', icon: ListChecks, description: 'Know exactly where your request stands.' },
-  { title: 'Category-based complaints', icon: Tag, description: 'Organized issues for faster resolution.' },
-  { title: 'Admin verification system', icon: ShieldCheck, description: 'Only admins can approve completion.' },
+const demoWorkers = [
+  { _id: 'demo-worker-vikram', id: 'demo-worker-vikram', name: 'Vikram', email: 'vikram@hostel.com', phone: '9876543201', totalAssignedComplaints: 1, pendingComplaints: 1, completedComplaints: 0 },
+  { _id: 'demo-worker-rajesh', id: 'demo-worker-rajesh', name: 'Rajesh', email: 'rajesh@hostel.com', phone: '9876543202', totalAssignedComplaints: 1, pendingComplaints: 0, completedComplaints: 1 },
+  { _id: 'demo-worker-amit', id: 'demo-worker-amit', name: 'Amit', email: 'amit@hostel.com', phone: '9876543203', totalAssignedComplaints: 0, pendingComplaints: 0, completedComplaints: 0 },
+  { _id: 'demo-worker-suresh', id: 'demo-worker-suresh', name: 'Suresh', email: 'suresh@hostel.com', phone: '9876543204', totalAssignedComplaints: 0, pendingComplaints: 0, completedComplaints: 0 },
+];
+const statusFlow = ['Pending', 'Assigned', 'In Progress', 'Solved'];
+
+const featureCards = [
+  {
+    title: 'Easy Complaint Submission',
+    description: 'Students can submit hostel issues with category, priority, location, and images.',
+    icon: ClipboardList,
+  },
+  {
+    title: 'Real-time Tracking',
+    description: 'Every role sees clear status updates from pending work to final resolution.',
+    icon: Gauge,
+  },
+  {
+    title: 'Fast Resolution',
+    description: 'Admins assign workers, workers upload solved proof, and admins verify closure.',
+    icon: BadgeCheck,
+  },
 ];
 
-const categoryStyles = {
-  Water: 'bg-cyan-500/10 text-cyan-200',
-  Electricity: 'bg-amber-500/10 text-amber-200',
-  Tiles: 'bg-violet-500/10 text-violet-200',
-  Furniture: 'bg-emerald-500/10 text-emerald-200',
+const categoryPriority = {
+  Water: 'High',
+  Electricity: 'High',
+  Security: 'High',
+  Internet: 'Medium',
+  Cleaning: 'Medium',
+  Food: 'Medium',
+  Furniture: 'Low',
+  Tiles: 'Low',
+  Others: 'Low',
 };
 
-const priorityStyles = {
-  High: 'bg-red-500/10 text-red-300',
-  Medium: 'bg-orange-500/10 text-orange-300',
-  Low: 'bg-emerald-500/10 text-emerald-300',
+const categoryKeywords = {
+  Water: ['water', 'tap', 'pipe', 'leak', 'leaking', 'bathroom', 'washroom', 'flush', 'drain', 'geyser'],
+  Electricity: ['electric', 'electricity', 'light', 'fan', 'switch', 'socket', 'wire', 'power', 'bulb', 'charging'],
+  Security: ['security', 'lock', 'door', 'theft', 'stolen', 'cctv', 'guard', 'unsafe', 'window'],
+  Internet: ['internet', 'wifi', 'wi-fi', 'network', 'router', 'lan', 'speed', 'connection'],
+  Cleaning: ['clean', 'cleaning', 'dirty', 'dust', 'garbage', 'trash', 'smell', 'hygiene'],
+  Food: ['food', 'mess', 'meal', 'breakfast', 'lunch', 'dinner', 'canteen', 'quality'],
+  Furniture: ['chair', 'table', 'bed', 'cot', 'mattress', 'cupboard', 'almirah', 'furniture'],
+  Tiles: ['tile', 'tiles', 'floor', 'wall', 'crack', 'broken tile'],
 };
 
 const statusStyles = {
-  Pending: 'bg-amber-500/10 text-amber-300',
-  'In Progress': 'bg-sky-500/10 text-sky-300',
-  'Awaiting Confirmation': 'bg-violet-500/10 text-violet-300',
-  Completed: 'bg-emerald-500/10 text-emerald-300',
+  Pending: 'bg-amber-100 text-amber-700 ring-amber-200',
+  Assigned: 'bg-blue-100 text-blue-700 ring-blue-200',
+  'In Progress': 'bg-sky-100 text-sky-700 ring-sky-200',
+  Completed: 'bg-violet-100 text-violet-700 ring-violet-200',
+  'Awaiting Verification': 'bg-violet-100 text-violet-700 ring-violet-200',
+  Verified: 'bg-indigo-100 text-indigo-700 ring-indigo-200',
+  Resolved: 'bg-emerald-100 text-emerald-700 ring-emerald-200',
+  Solved: 'bg-emerald-100 text-emerald-700 ring-emerald-200',
+  Delayed: 'bg-red-100 text-red-700 ring-red-200',
 };
 
-const defaultComplaints = [
+const priorityStyles = {
+  Urgent: 'bg-red-100 text-red-700 ring-red-200',
+  High: 'bg-rose-100 text-rose-700 ring-rose-200',
+  Medium: 'bg-orange-100 text-orange-700 ring-orange-200',
+  Low: 'bg-emerald-100 text-emerald-700 ring-emerald-200',
+};
+
+const demoComplaints = [
   {
-    id: 1,
-    studentName: 'Aanya',
+    _id: 'demo-1',
+    studentName: 'Aanya Sharma',
     email: 'aanya@student.edu',
     title: 'Leaking bathroom pipe',
-    description: 'The washroom pipe is leaking and flooding the floor daily.',
+    description: 'Bathroom pipe is leaking continuously near room 204.',
     category: 'Water',
     priority: 'High',
     status: 'Pending',
     assignedTo: 'Not assigned',
+    roomNo: '204',
+    contact: '9876543210',
+    created_at: new Date(Date.now() - 5 * 86400000).toISOString(),
+    createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
+    images: [],
+    workerProofImages: [],
   },
   {
-    id: 2,
-    studentName: 'Rohan',
+    _id: 'demo-2',
+    studentName: 'Rohan Patel',
     email: 'rohan@student.edu',
-    title: 'Broken room light',
-    description: 'The ceiling light is not working in room 204.',
+    title: 'Broken corridor light',
+    description: 'The second-floor corridor light has not worked since yesterday.',
     category: 'Electricity',
-    priority: 'Medium',
-    status: 'In Progress',
+    priority: 'High',
+    status: 'Assigned',
     assignedTo: 'Vikram',
+    assigned_at: new Date(Date.now() - 5 * 86400000).toISOString(),
+    roomNo: '118',
+    contact: '9876543211',
+    createdAt: new Date(Date.now() - 86400000).toISOString(),
+    images: [],
+    workerProofImages: [],
+  },
+  {
+    _id: 'demo-3',
+    studentName: 'Meera Nair',
+    email: 'meera@student.edu',
+    title: 'Chair repair needed',
+    description: 'Study chair leg is damaged and unsafe to use.',
+    category: 'Furniture',
+    priority: 'Low',
+    status: 'Resolved',
+    assignedTo: 'Rajesh',
+    assigned_at: new Date(Date.now() - 2 * 86400000).toISOString(),
+    started_at: new Date(Date.now() - 86400000).toISOString(),
+    completed_at: new Date().toISOString(),
+    roomNo: '312',
+    contact: '9876543212',
+    createdAt: new Date(Date.now() - 172800000).toISOString(),
+    images: [],
+    workerProofImages: [],
+    workerSubmittedProof: true,
   },
 ];
 
-const adminCredentials = {
-  email: 'admin@hostel.com',
-  password: 'Admin@123',
-};
-
 function App() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  const { call: apiCall } = useApi();
+  const [user, setUser] = useState(() => getUser());
   const [complaints, setComplaints] = useState([]);
+  const [workerDirectory, setWorkerDirectory] = useState(demoWorkers);
   const [toast, setToast] = useState(null);
   const [loading, setLoading] = useState(false);
-  const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:4000';
 
-  const assignedComplaints = useMemo(
-    () => complaints.filter((item) => item.assignedTo && item.assignedTo !== 'Not assigned'),
-    [complaints]
-  );
+  const showToast = (title, message, tone = 'success') => {
+    setToast({ title, message, tone });
+    window.setTimeout(() => setToast(null), 2600);
+  };
 
-  const filterMyComplaints = useMemo(
-    () => complaints.filter((item) => user?.email && item.email === user.email),
-    [complaints, user]
-  );
-
-  const handleAuth = async (values, mode = 'login') => {
-    setLoading(true);
+  const loadComplaints = async () => {
     try {
-      if (values.role === 'Student') {
-        if (mode === 'register') {
-          const response = await fetch(`${API_BASE}/api/students/register`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(values),
-          });
-          const data = await response.json();
-          if (!response.ok) throw new Error(data.message || 'Registration failed');
-
-          setToast({ title: 'Registration successful', message: 'Student registered. Please login now.', type: 'success' });
-          setLoading(false);
-          return;
-        }
-
-        const response = await fetch(`${API_BASE}/api/students/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(values),
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || 'Login failed');
-
-        setUser({ role: 'Student', email: data.email, name: data.name });
-        setToast({ title: 'Welcome, Student!', message: 'You are logged in successfully.', type: 'success' });
-        navigate('/student');
-        setLoading(false);
+      const token = getToken();
+      if (!token) {
+        setComplaints(demoComplaints);
         return;
       }
 
-      setUser({ role: values.role, email: values.email, name: values.name });
-      setToast({ title: 'Welcome!', message: `Logged in as ${values.role}.`, type: 'success' });
-      if (values.role === 'Worker') navigate('/worker');
+      const response = await fetch(`${API_BASE}/api/complaints`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) throw new Error('Unable to load complaints.');
+      const data = await response.json();
+      setComplaints(data.length ? data : demoComplaints);
     } catch (error) {
-      setToast({ title: 'Auth error', message: error.message, type: 'error' });
-    } finally {
-      setLoading(false);
+      setComplaints(demoComplaints);
+      showToast('Demo data loaded', 'Start the server to use live complaints.', 'info');
     }
   };
 
-  const handleAdminLogin = (values) => {
-    setLoading(true);
-    setTimeout(() => {
-      if (values.email === adminCredentials.email && values.password === adminCredentials.password) {
-        setUser({ role: 'Admin', email: values.email, name: 'Hostel Admin' });
-        setToast({ title: 'Welcome, Admin!', message: 'Secure admin access granted.', type: 'success' });
-        navigate('/admin');
-      } else {
-        setToast({ title: 'Login failed', message: 'Invalid admin credentials.', type: 'error' });
-      }
-      setLoading(false);
-    }, 800);
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    navigate('/');
-    setToast({ title: 'Signed out', message: 'You have been logged out.', type: 'info' });
-  };
-
-  const showToast = (toastData) => {
-    setToast(toastData);
-    window.setTimeout(() => setToast(null), 10000);
-  };
-
-  const fetchComplaints = async () => {
+  const loadWorkers = async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/complaints`);
-      if (!response.ok) throw new Error('Unable to load complaints');
+      const token = getToken();
+      if (!token) {
+        setWorkerDirectory(demoWorkers);
+        return;
+      }
+
+      const response = await fetch(`${API_BASE}/api/admin/workers`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) throw new Error('Unable to load workers.');
       const data = await response.json();
-      setComplaints(data);
+      setWorkerDirectory(data.length ? data : demoWorkers);
     } catch (error) {
-      console.error(error);
-      setToast({ title: 'Load error', message: error.message, type: 'error' });
+      setWorkerDirectory(demoWorkers);
     }
   };
 
   useEffect(() => {
-    fetchComplaints();
-  }, []);
+    if (user) {
+      loadComplaints();
+      loadWorkers();
+    }
+  }, [user]);
 
-  const addComplaint = async (complaint) => {
+  const dashboardPath = (role) => {
+    if (role === 'Student') return '/student';
+    if (role === 'Worker') return '/worker';
+    if (role === 'Admin') return '/admin';
+    return '/superadmin';
+  };
+
+  const handleLogin = async ({ email, password, role }) => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/api/complaints`, {
+      const endpointByRole = {
+        Student: '/api/students/login',
+        Worker: '/api/worker/login',
+        Admin: '/api/admin/login',
+        'Super Admin': '/api/superadmin/login',
+      };
+      const response = await fetch(`${API_BASE}${endpointByRole[role]}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          studentName: user.name,
-          email: user.email,
-          location: complaint.location,
-          contact: complaint.contact,
-          ...complaint,
-        }),
+        body: JSON.stringify({ email, password }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Failed to submit complaint');
+      if (!response.ok) throw new Error(data.message || 'Login failed.');
 
-      setComplaints((prev) => [data, ...prev]);
-      showToast({ title: 'Complaint submitted', message: 'Your request is now in the queue.', type: 'success' });
+      const normalizedRole = role === 'Super Admin' ? 'SuperAdmin' : role;
+      const userData = { 
+        id: data.user?.id || data.id, 
+        email: data.user?.email || data.email, 
+        name: data.user?.name || data.name || role, 
+        role: normalizedRole 
+      };
+      
+      // Save token and user data
+      if (data.token) {
+        setAuth(data.token, userData);
+      }
+      
+      setUser(userData);
+      showToast('Login successful', `Redirecting to ${role} dashboard.`);
+      navigate(dashboardPath(normalizedRole));
     } catch (error) {
-      setToast({ title: 'Submit error', message: error.message, type: 'error' });
+      showToast('Login failed', error.message, 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const updateStatus = async (id, nextStatus) => {
-    if (nextStatus === 'Awaiting Confirmation') {
-      const confirmComplete = window.confirm('Verify with the student before sending this complaint for completion confirmation. Continue?');
-      if (!confirmComplete) return;
+  const handleLogout = () => {
+    clearAuth();
+    setUser(null);
+    navigate('/');
+    showToast('Signed out', 'You are back on the homepage.', 'info');
+  };
+
+  const addComplaint = async (values, files) => {
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      Object.entries(values).forEach(([key, value]) => formData.append(key, value));
+      files.forEach((file) => formData.append('images', file));
+
+      const response = await fetch(`${API_BASE}/api/complaints`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Unable to submit complaint.');
+
+      setComplaints((current) => [data, ...current]);
+      showToast('Complaint registered', 'Your issue is now marked Pending.');
+    } catch (error) {
+      showToast('Submission failed', error.message, 'error');
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const patchStatus = async (id, status, message = `Complaint moved to ${status}.`) => {
     try {
       const response = await fetch(`${API_BASE}/api/complaints/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: nextStatus }),
+        body: JSON.stringify({ status }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Failed to update status');
+      if (!response.ok) throw new Error(data.message || 'Unable to update status.');
 
-      setComplaints((prev) => prev.map((item) => (item._id === data._id ? data : item)));
-      showToast({ title: 'Status updated', message: `Complaint marked ${nextStatus}.`, type: 'success' });
+      setComplaints((current) => current.map((item) => (item._id === id ? data : item)));
+      loadWorkers();
+      showToast('Status updated', message);
     } catch (error) {
-      setToast({ title: 'Update error', message: error.message, type: 'error' });
+      showToast('Update failed', error.message, 'error');
     }
   };
 
   const assignWorker = async (id, worker) => {
+    const workerRecord = typeof worker === 'string' ? workerDirectory.find((item) => item.name === worker || item.id === worker || item._id === worker) : worker;
+    const assignedTo = workerRecord?.name || worker;
     try {
+      if (id?.startsWith('demo-')) {
+        setComplaints((current) => current.map((item) => (
+          item._id === id
+            ? {
+                ...item,
+                assignedTo,
+                workerName: assignedTo,
+                workerId: workerRecord?.id || workerRecord?._id || `WRK-${assignedTo.toUpperCase().slice(0, 3)}`,
+                assigned_worker_id: workerRecord?.id || workerRecord?._id || null,
+                workerContact: workerRecord?.phone || 'Not provided',
+                status: 'Assigned',
+                assigned_at: new Date().toISOString(),
+                assignedAt: new Date().toISOString(),
+              }
+            : item
+        )));
+        showToast('Worker assigned', `${assignedTo} is assigned. Waiting for work to start.`);
+        return;
+      }
+
       const response = await fetch(`${API_BASE}/api/complaints/${id}/assign`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assignedTo: worker }),
+        body: JSON.stringify({ assignedTo, workerId: workerRecord?.id || workerRecord?._id }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Failed to assign worker');
+      if (!response.ok) throw new Error(data.message || 'Unable to assign worker.');
 
-      setComplaints((prev) => prev.map((item) => (item._id === data._id ? data : item)));
-      showToast({ title: 'Worker assigned', message: `${worker} is now assigned.`, type: 'success' });
+      setComplaints((current) => current.map((item) => (item._id === id ? data : item)));
+      loadWorkers();
+      showToast('Worker assigned', `${assignedTo} is assigned. Waiting for work to start.`);
     } catch (error) {
-      setToast({ title: 'Assignment error', message: error.message, type: 'error' });
+      showToast('Assignment failed', error.message, 'error');
     }
   };
 
-  const confirmCompletion = async (id) => {
+  const addWorker = async (values) => {
     try {
-      const response = await fetch(`${API_BASE}/api/complaints/${id}/status`, {
-        method: 'PATCH',
+      const response = await fetch(`${API_BASE}/api/admin/workers`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'Completed' }),
+        body: JSON.stringify({ ...values, role: user?.role }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Failed to confirm completion');
+      if (!response.ok) throw new Error(data.message || 'Unable to add worker.');
 
-      setComplaints((prev) => prev.map((item) => (item._id === data._id ? data : item)));
-      showToast({ title: 'Request closed', message: 'Complaint marked as completed by student.', type: 'success' });
+      setWorkerDirectory((current) => [data, ...current]);
+      showToast('Worker added', `${data.name} can now receive complaints.`);
     } catch (error) {
-      setToast({ title: 'Update error', message: error.message, type: 'error' });
+      showToast('Add worker failed', error.message, 'error');
     }
   };
+
+  const deleteWorker = async (worker) => {
+    const confirmed = window.confirm(`Delete ${worker.name}? Their assigned complaints will be set to Not assigned.`);
+    if (!confirmed) return;
+
+    try {
+      if (worker.id?.startsWith('demo-worker')) {
+        setWorkerDirectory((current) => current.filter((item) => item.id !== worker.id));
+        setComplaints((current) => current.map((item) => (
+          workerMatchesComplaint(worker, item)
+            ? { ...item, assigned_worker_id: null, assignedTo: 'Not assigned', workerName: null, workerId: null, workerContact: null }
+            : item
+        )));
+        showToast('Worker removed', 'Demo worker removed and complaints were unassigned.');
+        return;
+      }
+
+      const response = await fetch(`${API_BASE}/api/admin/workers/${worker.id || worker._id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: user?.role }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Unable to delete worker.');
+
+      setWorkerDirectory((current) => current.filter((item) => (item.id || item._id) !== (worker.id || worker._id)));
+      await loadComplaints();
+      await loadWorkers();
+      showToast('Worker removed', data.message || 'Worker deleted.');
+    } catch (error) {
+      showToast('Delete worker failed', error.message, 'error');
+    }
+  };
+
+  const removeComplaint = async (complaint, actorRole) => {
+    if (!isSolvedComplaint(complaint)) {
+      showToast('Remove blocked', 'Only solved complaints can be removed.', 'error');
+      return;
+    }
+
+    const confirmed = window.confirm('Are you sure you want to remove this complaint?');
+    if (!confirmed) return;
+
+    try {
+      if (complaint._id?.startsWith('demo-')) {
+        setComplaints((current) => current.filter((item) => item._id !== complaint._id));
+        showToast('Complaint removed', 'Demo complaint removed from the dashboard.');
+        return;
+      }
+
+      const response = await fetch(`${API_BASE}/api/complaints/${complaint._id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actor: user?.name || actorRole, role: actorRole }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Unable to remove complaint.');
+
+      setComplaints((current) => current.filter((item) => item._id !== complaint._id));
+      showToast('Complaint removed', 'Solved complaint archived with an audit log.');
+    } catch (error) {
+      showToast('Remove failed', error.message, 'error');
+    }
+  };
+
+  const submitProof = async (id, files, remarks) => {
+    try {
+      const formData = new FormData();
+      files.forEach((file) => formData.append('proofImages', file));
+      formData.append('remarks', remarks);
+
+      const response = await fetch(`${API_BASE}/api/workers/complaints/${id}/complete`, {
+        method: 'PATCH',
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Unable to upload proof.');
+
+      setComplaints((current) => current.map((item) => (item._id === id ? data : item)));
+      loadWorkers();
+      showToast('Proof uploaded', 'Worker marked the complaint as Completed.');
+    } catch (error) {
+      showToast('Proof upload failed', error.message, 'error');
+    }
+  };
+
+  const visibleStudentComplaints = useMemo(() => {
+    if (!user?.email) return complaints;
+    return complaints.filter((item) => item.email === user.email || item._id?.startsWith('demo-'));
+  }, [complaints, user]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <header className="border-b border-slate-800/70 bg-slate-950/80 backdrop-blur sticky top-0 z-50">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 sm:px-8">
-          <NavLink to="/" className="inline-flex items-center gap-3 text-2xl font-semibold text-white">
-            <Sparkles className="h-7 w-7 text-indigo-400" />
-            Smart Hostel
-          </NavLink>
-          <nav className="flex items-center gap-4 text-sm text-slate-300">
-            <NavLink to="/" className={({ isActive }) => isActive ? 'text-white' : 'hover:text-white'}>Home</NavLink>
-            <NavLink to="/auth" className={({ isActive }) => isActive ? 'text-white' : 'hover:text-white'}>Login</NavLink>
-            <NavLink to="/admin-login" className={({ isActive }) => isActive ? 'text-white' : 'hover:text-white'}>Admin Login</NavLink>
-            {user && (
-              <button onClick={handleLogout} className="rounded-full bg-slate-800 px-4 py-2 text-sm text-slate-200 transition hover:bg-slate-700">
-                Logout
-              </button>
-            )}
-          </nav>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl px-6 py-10 sm:px-8">
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/auth" element={<AuthPage onSubmit={handleAuth} loading={loading} />} />
-          <Route path="/admin-login" element={<AdminLoginPage onSubmit={handleAdminLogin} loading={loading} />} />
-          <Route path="/student" element={<StudentDashboard user={user} complaints={filterMyComplaints} loading={loading} onSubmit={addComplaint} onConfirm={confirmCompletion} />} />
-          <Route path="/admin" element={<AdminDashboard user={user} complaints={complaints} onAssign={assignWorker} onUpdate={updateStatus} />} />
-          <Route path="/worker" element={<WorkerDashboard user={user} complaints={complaints} />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </main>
+    <div className="min-h-screen bg-[linear-gradient(135deg,#eef7ff_0%,#f8efff_48%,#ecfff8_100%)] text-slate-900">
+      <Navbar user={user} onLogout={handleLogout} />
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/login" element={<LoginPage loading={loading} onLogin={handleLogin} />} />
+        <Route path="/register" element={<RegisterPage loading={loading} onRegister={handleLogin} showToast={showToast} />} />
+        <Route
+          path="/student"
+          element={<StudentDashboard user={user} complaints={visibleStudentComplaints} loading={loading} onSubmit={addComplaint} />}
+        />
+        <Route
+          path="/worker"
+          element={<WorkerDashboard user={user} complaints={complaints} workers={workerDirectory} onSubmitProof={submitProof} />}
+        />
+        <Route
+          path="/admin"
+          element={<AdminDashboard user={user} complaints={complaints} workers={workerDirectory} onAddWorker={addWorker} onDeleteWorker={deleteWorker} onAssign={assignWorker} onStatus={patchStatus} onRemove={removeComplaint} />}
+        />
+        <Route
+          path="/superadmin"
+          element={<SuperAdminDashboard user={user} complaints={complaints} workers={workerDirectory} onAddWorker={addWorker} onDeleteWorker={deleteWorker} onStatus={patchStatus} onRemove={removeComplaint} />}
+        />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
 
       {toast && (
-        <div className="fixed bottom-5 right-5 z-50 animate-fade-in">
-          <div className="w-80 rounded-3xl border border-slate-800/80 bg-slate-900/95 p-4 shadow-soft">
-            <div className="flex items-start gap-3">
-              <div className="mt-1 rounded-2xl bg-slate-700/80 p-2 text-slate-50">
-                <Bell className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="font-semibold text-white">{toast.title}</p>
-                <p className="mt-1 text-sm text-slate-400">{toast.message}</p>
-              </div>
-            </div>
-          </div>
+        <div className="fixed bottom-5 right-5 z-50 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-white/70 bg-white/90 p-4 shadow-2xl backdrop-blur">
+          <p className={`font-semibold ${toast.tone === 'error' ? 'text-rose-700' : 'text-slate-950'}`}>{toast.title}</p>
+          <p className="mt-1 text-sm text-slate-600">{toast.message}</p>
         </div>
       )}
     </div>
   );
 }
 
+function Navbar({ user, onLogout }) {
+  return (
+    <header className="sticky top-0 z-40 border-b border-white/60 bg-white/70 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+        <NavLink to="/" className="flex items-center gap-3 font-bold text-slate-950">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-slate-950 text-white shadow-lg shadow-cyan-900/20">
+            <Home className="h-5 w-5" />
+          </span>
+          <span className="hidden sm:inline">Smart Hostel</span>
+        </NavLink>
+        <nav className="flex items-center gap-2 text-sm font-medium text-slate-600">
+          {user && <span className="hidden rounded-full bg-slate-100 px-3 py-2 sm:inline">{user.role}</span>}
+          {user ? (
+            <button onClick={onLogout} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-white transition hover:bg-slate-800">
+              <LogOut className="h-4 w-4" />
+              Logout
+            </button>
+          ) : (
+            <NavLink to="/login" className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-white transition hover:bg-slate-800">
+              <Lock className="h-4 w-4" />
+              Login
+            </NavLink>
+          )}
+        </nav>
+      </div>
+    </header>
+  );
+}
+
 function HomePage() {
   return (
-    <section className="space-y-16">
-      <div className="rounded-[2rem] border border-slate-700/80 bg-slate-900/80 bg-hero-gradient p-8 shadow-soft backdrop-blur sm:p-12">
-        <div className="grid gap-10 lg:grid-cols-[1.2fr,0.8fr] lg:items-center">
-          <div className="space-y-6">
-            <div className="inline-flex items-center gap-2 rounded-full bg-fuchsia-500/15 px-4 py-2 text-sm text-fuchsia-200">
-              <Sparkles className="h-4 w-4" />
-              Modern hostel grievance platform
-            </div>
-            <div className="max-w-2xl space-y-6">
-              <h1 className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-                Smart Hostel Grievance System
-              </h1>
-              <p className="text-slate-400 sm:text-lg">
-                Solve hostel problems digitally with a fast complaint flow, progress tracking, and role-based management for students, admins, and workers.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-4">
-              <NavLink to="/auth" className="inline-flex items-center gap-2 rounded-2xl bg-fuchsia-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-fuchsia-400">
-                Login <ArrowRight className="h-4 w-4" />
-              </NavLink>
-              <NavLink to="/auth" className="inline-flex items-center gap-2 rounded-2xl border border-fuchsia-500/30 bg-slate-950/95 px-6 py-3 text-sm text-fuchsia-200 transition hover:bg-slate-900">
-                Register
-              </NavLink>
-              <NavLink to="/admin-login" className="inline-flex items-center gap-2 rounded-2xl border border-cyan-500/60 bg-cyan-500/10 px-6 py-3 text-sm text-cyan-200 transition hover:bg-cyan-500/15">
-                Admin Login
-              </NavLink>
-            </div>
-            <div className="grid gap-3 rounded-3xl border border-slate-700/90 bg-slate-950/95 p-6 text-slate-300 shadow-soft sm:grid-cols-2">
-              <div className="space-y-1">
-                <p className="text-slate-400">Built for fast reporting</p>
-                <p className="font-semibold text-white">Instant complaint creation</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-slate-400">Clear roles and workflows</p>
-                <p className="font-semibold text-white">Student, Admin, Worker</p>
-              </div>
-            </div>
+    <main>
+      <section className="mx-auto flex min-h-[calc(100vh-73px)] max-w-7xl flex-col justify-center px-4 py-12 text-center sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-4xl">
+          <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/70 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm backdrop-blur">
+            <Sparkles className="h-4 w-4 text-cyan-600" />
+            Hostel issue reporting, tracking, and verification
           </div>
-          <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-fuchsia-500/15 via-cyan-500/10 to-slate-950/80 p-8 shadow-soft backdrop-blur sm:p-10">
-            <div className="absolute inset-0 bg-hero-gradient opacity-80" />
-            <div className="relative space-y-6 text-white">
-              <div className="flex items-center gap-3 rounded-3xl bg-slate-950/80 px-5 py-4 shadow-xl shadow-slate-950/20">
-                <ShieldCheck className="h-6 w-6 text-cyan-300" />
-                <div>
-                  <p className="text-sm text-slate-300">Verified process</p>
-                  <p className="font-semibold">Admin approval before completion</p>
-                </div>
-              </div>
-              <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-6 shadow-xl shadow-slate-950/20">
-                <p className="text-sm uppercase tracking-[0.3em] text-slate-400">How it works</p>
-                <ul className="mt-5 space-y-4 text-sm text-slate-200">
-                  <li className="flex items-start gap-3">
-                    <span className="mt-1 inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-fuchsia-400/20 text-fuchsia-300">1</span>
-                    Submit a complaint and select category, priority, and description.
-                  </li>
-                  <li className="flex items-start gap-3">
-                    <span className="mt-1 inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-cyan-400/20 text-cyan-300">2</span>
-                    Admin assigns a worker and tracks progress with status badges.
-                  </li>
-                  <li className="flex items-start gap-3">
-                    <span className="mt-1 inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-emerald-400/20 text-emerald-300">3</span>
-                    Worker completes the repair, admin verifies, and closes the ticket.
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-        {features.map((feature) => {
-          const Icon = feature.icon;
-          return (
-            <div key={feature.title} className="rounded-3xl border border-slate-700/90 bg-slate-900/80 p-6 shadow-soft transition hover:-translate-y-1 hover:border-fuchsia-500/40">
-              <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-fuchsia-500/10 text-fuchsia-300">
-                <Icon className="h-6 w-6" />
-              </div>
-              <h3 className="mt-5 text-xl font-semibold text-white">{feature.title}</h3>
-              <p className="mt-3 text-slate-400">{feature.description}</p>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function AuthPage({ onSubmit, loading }) {
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState('Student');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [authMode, setAuthMode] = useState('register');
-
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    onSubmit({ email, role, password, name: name || email.split('@')[0] }, authMode);
-  };
-
-  return (
-    <div className="mx-auto max-w-3xl">
-      <div className="rounded-[2rem] border border-slate-800/90 bg-slate-900/90 p-8 shadow-soft sm:p-12">
-        <div className="mb-8 space-y-4 text-center">
-          <p className="text-sm uppercase tracking-[0.3em] text-indigo-300">Access your dashboard</p>
-          <h1 className="text-3xl font-semibold text-white sm:text-4xl">Login or Register</h1>
-          <p className="mx-auto max-w-2xl text-slate-400">
-            Choose a role and enter your credentials to experience the smart hostel grievance workflow.
+          <h1 className="text-4xl font-black tracking-tight text-slate-950 sm:text-6xl">
+            Smart Hostel Grievance System
+          </h1>
+          <p className="mx-auto mt-5 max-w-2xl text-lg text-slate-600">
+            Report and track hostel issues easily.
           </p>
-          <div className="mx-auto flex max-w-sm items-center justify-center gap-2 rounded-3xl border border-slate-700/80 bg-slate-950/80 p-2 text-sm text-slate-300">
-            <button
-              type="button"
-              onClick={() => setAuthMode('register')}
-              className={`rounded-3xl px-4 py-2 transition ${authMode === 'register' ? 'bg-indigo-500 text-white' : 'bg-transparent hover:bg-slate-900'}`}
-            >
-              Register
-            </button>
-            <button
-              type="button"
-              onClick={() => setAuthMode('login')}
-              className={`rounded-3xl px-4 py-2 transition ${authMode === 'login' ? 'bg-indigo-500 text-white' : 'bg-transparent hover:bg-slate-900'}`}
-            >
+          <div className="mt-8 flex justify-center gap-4">
+            <NavLink to="/login" className="inline-flex items-center gap-2 rounded-2xl bg-cyan-600 px-7 py-4 font-bold text-white shadow-xl shadow-cyan-900/20 transition hover:-translate-y-0.5 hover:bg-cyan-500">
               Login
-            </button>
+              <ArrowRight className="h-5 w-5" />
+            </NavLink>
+            <NavLink to="/register" className="inline-flex items-center gap-2 rounded-2xl border-2 border-cyan-600 px-7 py-4 font-bold text-cyan-600 shadow-xl transition hover:-translate-y-0.5 hover:bg-cyan-50">
+              Register
+              <ArrowRight className="h-5 w-5" />
+            </NavLink>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="space-y-2 text-sm text-slate-200">
-              Your name
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Student or admin name"
-                className="w-full rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 text-slate-100 transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20"
-              />
-            </label>
-            <label className="space-y-2 text-sm text-slate-200">
-              Email address
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-                className="w-full rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 text-slate-100 transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20"
-              />
-            </label>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="space-y-2 text-sm text-slate-200">
-              Password
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                required
-                className="w-full rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 text-slate-100 transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20"
-              />
-            </label>
-            <label className="space-y-2 text-sm text-slate-200">
-              Role
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="w-full rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 text-slate-100 transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20"
-              >
-                <option value="Student">Student</option>
-                <option value="Worker">Worker</option>
-              </select>
-            </label>
-          </div>
-          <p className="text-sm text-slate-500">Admin users should use the dedicated Admin Login page for extra security.</p>
-          {authMode === 'login' && role === 'Student' && (
-            <p className="text-sm text-amber-300">If you don't have a student account yet, switch to Register first.</p>
-          )}
+        <div className="mt-16 grid gap-5 md:grid-cols-3">
+          {featureCards.map(({ title, description, icon: Icon }) => (
+            <article key={title} className="rounded-2xl border border-white/70 bg-white/70 p-6 text-center shadow-xl shadow-slate-200/60 backdrop-blur">
+              <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-slate-950 text-white">
+                <Icon className="h-7 w-7" />
+              </div>
+              <h2 className="mt-5 text-lg font-bold text-slate-950">{title}</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-600">{description}</p>
+            </article>
+          ))}
+        </div>
+      </section>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-3xl bg-indigo-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : authMode === 'register' ? 'Register student' : 'Login'}
-          </button>
-        </form>
-      </div>
-    </div>
+      <section className="border-y border-white/70 bg-white/55 px-4 py-16 backdrop-blur sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-5xl text-center">
+          <p className="text-sm font-bold uppercase tracking-[0.22em] text-cyan-700">About</p>
+          <h2 className="mt-3 text-3xl font-black text-slate-950">One clear system for every hostel complaint</h2>
+          <p className="mx-auto mt-4 max-w-3xl leading-7 text-slate-600">
+            Students submit issues with images, admins assign workers, workers upload solved image proof, and admins verify the result before resolving the complaint.
+          </p>
+          <Lifecycle />
+        </div>
+      </section>
+
+      <footer className="px-4 py-8 text-center text-sm text-slate-600">
+        © 2026 Smart Hostel Grievance System. Built for transparent hostel maintenance.
+      </footer>
+    </main>
   );
 }
 
-function AdminLoginPage({ onSubmit, loading }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+function LoginPage({ loading, onLogin }) {
+  const [showPassword, setShowPassword] = useState(false);
+  const [form, setForm] = useState({ email: '', password: '', role: 'Student' });
 
-  const handleSubmit = (event) => {
+  const submit = (event) => {
     event.preventDefault();
-    onSubmit({ email, password });
+    onLogin(form);
   };
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <div className="rounded-[2rem] border border-slate-800/90 bg-slate-900/90 p-8 shadow-soft sm:p-12">
-        <div className="mb-8 space-y-4 text-center">
-          <p className="text-sm uppercase tracking-[0.3em] text-indigo-300">Admin Access</p>
-          <h1 className="text-3xl font-semibold text-white sm:text-4xl">Secure Admin Login</h1>
-          <p className="mx-auto max-w-2xl text-slate-400">
-            Sign in with the secure admin credentials to manage complaints and verify completion.
+    <main className="grid min-h-[calc(100vh-73px)] place-items-center px-4 py-10">
+      <form onSubmit={submit} className="w-full max-w-md rounded-3xl border border-white/60 bg-white/35 p-7 shadow-2xl shadow-slate-300/50 backdrop-blur-2xl">
+        <div className="text-center">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-slate-950 text-white">
+            <ShieldCheck className="h-7 w-7" />
+          </div>
+          <h1 className="mt-5 text-3xl font-black text-slate-950">Role Login</h1>
+          <p className="mt-2 text-sm text-slate-600">Access the right dashboard based on your role.</p>
+        </div>
+
+        <label className="mt-8 block text-sm font-semibold text-slate-700">
+          Email
+          <input
+            type="email"
+            required
+            value={form.email}
+            onChange={(event) => setForm({ ...form, email: event.target.value })}
+            className="mt-2 w-full rounded-2xl border border-white/80 bg-white/75 px-4 py-3 text-slate-950 shadow-sm"
+            placeholder="name@hostel.com"
+          />
+        </label>
+
+        <label className="mt-4 block text-sm font-semibold text-slate-700">
+          Password
+          <span className="mt-2 flex rounded-2xl border border-white/80 bg-white/75 shadow-sm">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              required
+              value={form.password}
+              onChange={(event) => setForm({ ...form, password: event.target.value })}
+              className="min-w-0 flex-1 rounded-2xl bg-transparent px-4 py-3 text-slate-950"
+              placeholder="Enter password"
+            />
+            <button type="button" onClick={() => setShowPassword((value) => !value)} className="px-4 text-slate-500 hover:text-slate-950" aria-label="Toggle password visibility">
+              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+            </button>
+          </span>
+        </label>
+
+        <label className="mt-4 block text-sm font-semibold text-slate-700">
+          Role
+          <select
+            value={form.role}
+            onChange={(event) => setForm({ ...form, role: event.target.value })}
+            className="mt-2 w-full rounded-2xl border border-white/80 bg-white/75 px-4 py-3 text-slate-950 shadow-sm"
+          >
+            <option>Student</option>
+            <option>Admin</option>
+            <option>Worker</option>
+            <option>Super Admin</option>
+          </select>
+        </label>
+
+        <div className="mt-4 flex justify-end">
+          <a href="#forgot-password" className="text-sm font-semibold text-cyan-700 hover:text-cyan-600">Forgot password?</a>
+        </div>
+
+        <button disabled={loading} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60">
+          {loading ? 'Logging in...' : 'Login'}
+          <ArrowRight className="h-5 w-5" />
+        </button>
+
+        <div className="mt-6 text-center">
+          <p className="text-sm text-slate-600">
+            Don't have an account?{' '}
+            <NavLink to="/register" className="font-semibold text-cyan-700 hover:text-cyan-600">
+              Register here
+            </NavLink>
           </p>
         </div>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <label className="space-y-2 text-sm text-slate-200">
-            Admin email
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@hostel.com"
-              required
-              className="w-full rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 text-slate-100 transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20"
-            />
-          </label>
-          <label className="space-y-2 text-sm text-slate-200">
-            Password
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Admin password"
-              required
-              className="w-full rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 text-slate-100 transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20"
-            />
-          </label>
-          <button
-            type="submit"
-            disabled={loading}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-3xl bg-indigo-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign in as Admin'}
-          </button>
-          <p className="text-sm text-slate-500">Use the dedicated admin login page to keep admin access separate and secure.</p>
-        </form>
-      </div>
-    </div>
+      </form>
+    </main>
   );
 }
 
-function StudentDashboard({ user, complaints, onSubmit, onConfirm, loading }) {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('Water');
-  const [priority, setPriority] = useState('Medium');
-  const [location, setLocation] = useState('Room 101, North Hostel');
-  const [contact, setContact] = useState('');
+function RegisterPage({ loading, showToast }) {
+  const navigate = useNavigate();
+  const [showPassword, setShowPassword] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    roomNo: '',
+    hostelBlock: '',
+    password: '',
+    confirmPassword: '',
+  });
 
-  if (!user || user.role !== 'Student') {
-    return <Unauthenticated message="Student access only. Please login with a student account." />;
-  }
+  const validateForm = () => {
+    const newErrors = {};
 
-  const handleSubmit = (event) => {
+    if (!form.name.trim()) newErrors.name = 'Name is required.';
+    if (!form.email.trim()) newErrors.email = 'Email is required.';
+    else if (!validateEmail(form.email)) newErrors.email = 'Invalid email format.';
+
+    if (!form.phone.trim()) newErrors.phone = 'Phone is required.';
+    else if (!validatePhone(form.phone)) newErrors.phone = 'Phone must be 10 digits.';
+
+    if (!form.password) newErrors.password = 'Password is required.';
+    else if (!validatePassword(form.password)) newErrors.password = 'Password must be at least 6 characters.';
+
+    if (!form.confirmPassword) newErrors.confirmPassword = 'Please confirm your password.';
+    else if (form.password !== form.confirmPassword) newErrors.confirmPassword = 'Passwords do not match.';
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const submit = async (event) => {
     event.preventDefault();
-    onSubmit({ title, description, category, priority, location, contact });
-    setTitle('');
-    setDescription('');
-    setCategory('Water');
-    setPriority('Medium');
-    setLocation('Room 101, North Hostel');
-    setContact('');
+    
+    if (!validateForm()) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/api/students/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          phone: form.phone,
+          roomNo: form.roomNo,
+          hostelBlock: form.hostelBlock,
+          password: form.password,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Registration failed.');
+
+      // Save token if returned
+      if (data.token && data.user) {
+        setAuth(data.token, data.user);
+      }
+
+      showToast('Registration successful', 'Redirecting to login...');
+      setTimeout(() => navigate('/login'), 1500);
+    } catch (error) {
+      showToast('Registration failed', error.message, 'error');
+    }
   };
 
   return (
-    <div className="space-y-10">
-      <div className="rounded-[2rem] border border-slate-800/90 bg-slate-900/80 p-8 shadow-soft sm:p-10">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-indigo-300">Student Dashboard</p>
-            <h2 className="mt-3 text-3xl font-semibold text-white">Welcome back, {user.name}</h2>
-            <p className="mt-2 text-slate-400">Create new complaints and track their progress in a modern workspace.</p>
+    <main className="grid min-h-[calc(100vh-73px)] place-items-center px-4 py-10">
+      <form onSubmit={submit} className="w-full max-w-md rounded-3xl border border-white/60 bg-white/35 p-7 shadow-2xl shadow-slate-300/50 backdrop-blur-2xl">
+        <div className="text-center">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-slate-950 text-white">
+            <UserCog className="h-7 w-7" />
           </div>
-          <div className="inline-flex items-center gap-3 rounded-3xl bg-slate-950/80 px-5 py-4 text-slate-300 shadow-soft">
-            <UserCheck className="h-5 w-5 text-indigo-300" />
-            <div>
-              <p className="text-sm text-slate-400">Role</p>
-              <p className="font-semibold text-white">Student</p>
-            </div>
-          </div>
+          <h1 className="mt-5 text-3xl font-black text-slate-950">Student Registration</h1>
+          <p className="mt-2 text-sm text-slate-600">Create your account to submit complaints</p>
         </div>
+
+        <FormField label="Full Name" error={errors.name} required>
+          <input
+            type="text"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            className={`w-full rounded-2xl border bg-white/75 px-4 py-3 text-slate-950 shadow-sm ${
+              errors.name ? 'border-red-500' : 'border-white/80'
+            }`}
+            placeholder="John Doe"
+          />
+        </FormField>
+
+        <FormField label="Email" error={errors.email} required>
+          <input
+            type="email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            className={`w-full rounded-2xl border bg-white/75 px-4 py-3 text-slate-950 shadow-sm ${
+              errors.email ? 'border-red-500' : 'border-white/80'
+            }`}
+            placeholder="student@hostel.com"
+          />
+        </FormField>
+
+        <FormField label="Phone" error={errors.phone} required>
+          <input
+            type="tel"
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            className={`w-full rounded-2xl border bg-white/75 px-4 py-3 text-slate-950 shadow-sm ${
+              errors.phone ? 'border-red-500' : 'border-white/80'
+            }`}
+            placeholder="9876543210"
+          />
+        </FormField>
+
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label="Room No.">
+            <input
+              type="text"
+              value={form.roomNo}
+              onChange={(e) => setForm({ ...form, roomNo: e.target.value })}
+              className="w-full rounded-2xl border border-white/80 bg-white/75 px-4 py-3 text-slate-950 shadow-sm"
+              placeholder="101"
+            />
+          </FormField>
+
+          <FormField label="Hostel Block">
+            <input
+              type="text"
+              value={form.hostelBlock}
+              onChange={(e) => setForm({ ...form, hostelBlock: e.target.value })}
+              className="w-full rounded-2xl border border-white/80 bg-white/75 px-4 py-3 text-slate-950 shadow-sm"
+              placeholder="A/B/C"
+            />
+          </FormField>
+        </div>
+
+        <FormField label="Password" error={errors.password} required>
+          <span className="flex rounded-2xl border border-white/80 bg-white/75 shadow-sm">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              className="min-w-0 flex-1 rounded-2xl bg-transparent px-4 py-3 text-slate-950"
+              placeholder="At least 6 characters"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="px-4 text-slate-500 hover:text-slate-950"
+            >
+              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+            </button>
+          </span>
+        </FormField>
+
+        <FormField label="Confirm Password" error={errors.confirmPassword} required>
+          <input
+            type={showPassword ? 'text' : 'password'}
+            value={form.confirmPassword}
+            onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
+            className={`w-full rounded-2xl border bg-white/75 px-4 py-3 text-slate-950 shadow-sm ${
+              errors.confirmPassword ? 'border-red-500' : 'border-white/80'
+            }`}
+            placeholder="Confirm password"
+          />
+        </FormField>
+
+        <button
+          disabled={loading}
+          className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {loading ? 'Registering...' : 'Register'}
+          <ArrowRight className="h-5 w-5" />
+        </button>
+
+        <div className="mt-6 text-center">
+          <p className="text-sm text-slate-600">
+            Already have an account?{' '}
+            <NavLink to="/login" className="font-semibold text-cyan-700 hover:text-cyan-600">
+              Login here
+            </NavLink>
+          </p>
+        </div>
+      </form>
+    </main>
+  );
+}
+
+function FormField({ label, children, error, required }) {
+  return (
+    <label className="mt-4 block text-sm font-semibold text-slate-700">
+      {label}
+      {required && <span className="text-red-500">*</span>}
+      {error && <p className="mt-1 text-xs text-red-500 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{error}</p>}
+      <div className="mt-2">{children}</div>
+    </label>
+  );
+}
+
+function StudentDashboard({ user, complaints, loading, onSubmit }) {
+  if (!hasRole(user, 'Student')) return <Restricted role="Student" />;
+
+  const stats = [
+    ['Total Complaints', complaints.length, ClipboardList],
+    ['Pending', complaints.filter((item) => displayStatus(item) === 'Pending').length, Clock],
+    ['Solved', complaints.filter(isSolvedComplaint).length, CheckCircle2],
+  ];
+
+  return (
+    <DashboardShell
+      title={`Welcome, ${user.name || 'Student'}`}
+      subtitle="Submit complaints, upload issue images, and track resolution progress."
+      role="Student"
+      menu={['Dashboard', 'Submit Complaint', 'My Complaints', 'Profile']}
+    >
+      <StatsGrid stats={stats} />
+      <ComplaintForm user={user} loading={loading} onSubmit={onSubmit} />
+      <Panel title="My Complaints" action={<a href="#new-complaint" className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2 text-sm font-bold text-white"><Plus className="h-4 w-4" />New Complaint</a>}>
+        <ComplaintTable complaints={complaints} columns={['Title', 'Category', 'Status', 'Priority', 'Date']} />
+      </Panel>
+    </DashboardShell>
+  );
+}
+
+function ComplaintForm({ user, loading, onSubmit }) {
+  const [files, setFiles] = useState([]);
+  const [form, setForm] = useState({
+    title: '',
+    description: '',
+    location: '',
+    contact: '',
+  });
+  const detectedCategory = inferComplaintCategory(form);
+
+  const submit = (event) => {
+    event.preventDefault();
+    onSubmit(
+      {
+        ...form,
+        category: detectedCategory,
+        studentName: user.name || 'Student',
+        email: user.email,
+        priority: categoryPriority[detectedCategory] || 'Low',
+      },
+      files
+    );
+    setForm({ title: '', description: '', location: '', contact: '' });
+    setFiles([]);
+  };
+
+  return (
+    <Panel title="Submit Complaint" id="new-complaint">
+      <form onSubmit={submit} className="grid gap-4 lg:grid-cols-2">
+        <input required value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} className="rounded-2xl border border-slate-200 bg-white px-4 py-3" placeholder="Complaint title" />
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+          <span className="text-sm font-semibold text-slate-500">Auto category</span>
+          <span className="rounded-full bg-cyan-100 px-3 py-1 text-sm font-black text-cyan-800">{detectedCategory}</span>
+        </div>
+        <input value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} className="rounded-2xl border border-slate-200 bg-white px-4 py-3" placeholder="Room / location" />
+        <input value={form.contact} onChange={(event) => setForm({ ...form, contact: event.target.value })} className="rounded-2xl border border-slate-200 bg-white px-4 py-3" placeholder="Contact number" />
+        <textarea required value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="min-h-28 rounded-2xl border border-slate-200 bg-white px-4 py-3 lg:col-span-2" placeholder="Describe the issue" />
+        <label className="flex cursor-pointer items-center justify-center gap-3 rounded-2xl border border-dashed border-cyan-300 bg-cyan-50 px-4 py-5 font-semibold text-cyan-800 lg:col-span-2">
+          <Upload className="h-5 w-5" />
+          Upload image option
+          <input type="file" multiple accept="image/*" onChange={(event) => setFiles(Array.from(event.target.files || []))} className="hidden" />
+        </label>
+        {files.length > 0 && <p className="text-sm font-medium text-slate-500 lg:col-span-2">{files.length} image(s) selected</p>}
+        <button disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 font-bold text-white transition hover:bg-slate-800 disabled:opacity-60 lg:col-span-2">
+          <Plus className="h-5 w-5" />
+          Register Complaint
+        </button>
+      </form>
+    </Panel>
+  );
+}
+
+function WorkerDashboard({ user, complaints, workers, onSubmitProof }) {
+  if (!hasRole(user, 'Worker')) return <Restricted role="Worker" />;
+
+  const currentWorker = workers.find((worker) => worker.email === user.email || worker.name === user.name || worker.id === user.id || worker._id === user.id);
+  const assigned = complaints.filter((item) => currentWorker ? workerMatchesComplaint(currentWorker, item) : item.assignedTo === user.name);
+  const actionable = assigned.filter((item) => ['In Progress', 'Pending'].includes(displayStatus(item)));
+
+  return (
+    <DashboardShell
+      title="Assigned Complaints"
+      subtitle="Review tasks, update status, and upload solved image proof."
+      role="Worker"
+      menu={['Assigned Complaints', 'Update Status', 'Upload Proof']}
+    >
+      <StatsGrid stats={[
+        ['Assigned', assigned.length, Wrench],
+        ['Pending Work', actionable.length, AlertTriangle],
+        ['Solved', assigned.filter(isSolvedComplaint).length, CheckCircle2],
+      ]} />
+      <div className="grid gap-5 xl:grid-cols-2">
+        {assigned.map((item) => <WorkerCard key={item._id} complaint={item} onSubmitProof={onSubmitProof} />)}
       </div>
+    </DashboardShell>
+  );
+}
 
-      <section className="grid gap-8 xl:grid-cols-[0.9fr,1.1fr]">
-        <div className="rounded-[2rem] border border-slate-800/90 bg-slate-900/80 p-8 shadow-soft">
-          <div className="mb-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Submit Complaint</p>
-              <h3 className="mt-2 text-2xl font-semibold text-white">New maintenance ticket</h3>
-            </div>
-            <div className="inline-flex items-center gap-2 rounded-3xl bg-slate-800 px-4 py-2 text-sm text-slate-300">
-              <Edit3 className="h-4 w-4 text-indigo-300" /> Fill details
-            </div>
-          </div>
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="space-y-2 text-sm text-slate-200">
-                Title
-                <input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  required
-                  placeholder="e.g. Broken faucet"
-                  className="w-full rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 text-slate-100 transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20"
-                />
-              </label>
-              <label className="space-y-2 text-sm text-slate-200">
-                Category
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 text-slate-100 transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20"
-                >
-                  <option>Water</option>
-                  <option>Electricity</option>
-                  <option>Tiles</option>
-                  <option>Furniture</option>
-                </select>
-              </label>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="space-y-2 text-sm text-slate-200">
-                Location / Room
-                <input
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  required
-                  placeholder="Room 204, North Hostel"
-                  className="w-full rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 text-slate-100 transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20"
-                />
-              </label>
-              <label className="space-y-2 text-sm text-slate-200">
-                Contact number
-                <input
-                  value={contact}
-                  onChange={(e) => setContact(e.target.value)}
-                  required
-                  placeholder="9876543210"
-                  className="w-full rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 text-slate-100 transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20"
-                />
-              </label>
-            </div>
-            <label className="space-y-2 text-sm text-slate-200">
-              Description
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                required
-                rows="4"
-                placeholder="Describe the issue in detail..."
-                className="w-full rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 text-slate-100 transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20"
-              />
-            </label>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="space-y-2 text-sm text-slate-200">
-                Priority
-                <select
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value)}
-                  className="w-full rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 text-slate-100 transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20"
-                >
-                  <option>High</option>
-                  <option>Medium</option>
-                  <option>Low</option>
-                </select>
-              </label>
-              <div className="flex items-end">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-3xl bg-indigo-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Submit complaint'}
-                </button>
+function WorkerCard({ complaint, onSubmitProof }) {
+  const [status, setStatus] = useState(displayStatus(complaint) === 'Pending' ? 'In Progress' : displayStatus(complaint));
+  const [files, setFiles] = useState([]);
+  const [remarks, setRemarks] = useState('');
+
+  return (
+    <article className={`rounded-2xl border bg-white p-5 shadow-sm ${displayStatus(complaint) === 'Pending' ? 'border-amber-300' : 'border-slate-200'}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-black text-slate-950">{complaint.title}</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-600">{complaint.description}</p>
+        </div>
+        <StatusBadge value={displayStatus(complaint)} />
+      </div>
+      <ImageStrip images={complaint.images} label="Complaint image" />
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+          <option>In Progress</option>
+          <option>Completed</option>
+        </select>
+        <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-cyan-300 bg-cyan-50 px-3 py-2 font-semibold text-cyan-800">
+          <Camera className="h-4 w-4" />
+          Solved Image
+          <input type="file" multiple accept="image/*" onChange={(event) => setFiles(Array.from(event.target.files || []))} className="hidden" />
+        </label>
+      </div>
+      <textarea value={remarks} onChange={(event) => setRemarks(event.target.value)} className="mt-3 min-h-20 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" placeholder="Work remarks" />
+      <button
+        onClick={() => onSubmitProof(complaint._id, files, remarks || `Marked ${status}`)}
+        disabled={files.length === 0}
+        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-3 font-bold text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <CheckCircle2 className="h-5 w-5" />
+        Mark as Completed
+      </button>
+    </article>
+  );
+}
+
+function AdminDashboard({ user, complaints, workers, onAddWorker, onDeleteWorker, onAssign, onStatus, onRemove }) {
+  if (!hasRole(user, 'Admin')) return <Restricted role="Admin" />;
+
+  return (
+    <DashboardShell
+      title="Admin Dashboard"
+      subtitle="Manage complaints, assign workers, verify uploaded images, and resolve cases."
+      role="Admin"
+      menu={['Dashboard', 'Manage Workers', 'Worker Workload Overview', 'All Complaints', 'Reports']}
+    >
+      <StatsGrid stats={[
+        ['Total Complaints', complaints.length, ClipboardList],
+        ['Pending', complaints.filter((item) => displayStatus(item) === 'Pending').length, Clock],
+        ['In Progress', complaints.filter((item) => ['Assigned', 'In Progress'].includes(displayStatus(item))).length, Wrench],
+        ['Solved', complaints.filter(isSolvedComplaint).length, CheckCircle2],
+      ]} />
+      <ManageWorkersPanel workers={workers} complaints={complaints} onAddWorker={onAddWorker} onDeleteWorker={onDeleteWorker} />
+      <WorkerWorkloadPanel workers={workers} complaints={complaints} />
+      <ComplaintBrowser
+        title="All Complaints"
+        complaints={complaints}
+        workers={workers}
+        role="Admin"
+        onAssign={onAssign}
+        onStatus={onStatus}
+        onRemove={onRemove}
+      />
+    </DashboardShell>
+  );
+}
+
+function SuperAdminDashboard({ user, complaints, workers, onAddWorker, onDeleteWorker, onStatus, onRemove }) {
+  if (!hasRole(user, 'SuperAdmin')) return <Restricted role="Super Admin" />;
+
+  const delayedComplaints = complaints.filter(isDelayedComplaint);
+
+  return (
+    <DashboardShell
+      title="System Overview"
+      subtitle="Monitor analytics, admin performance, unresolved complaints, and priority escalation."
+      role="Super Admin"
+      menu={['System Overview', 'Manage Workers', 'Worker Workload Overview', 'Complaint Monitoring', 'Reports']}
+    >
+      <StatsGrid stats={[
+        ['Complaints per day', Math.max(1, Math.round(complaints.length / 7)), BarChart3],
+        ['Delayed > 4 days', delayedComplaints.length, AlertTriangle],
+        ['Admins Active', 3, UserCog],
+        ['Resolved Rate', `${resolutionRate(complaints)}%`, BadgeCheck],
+      ]} />
+      <ManageWorkersPanel workers={workers} complaints={complaints} onAddWorker={onAddWorker} onDeleteWorker={onDeleteWorker} />
+      <WorkerWorkloadPanel workers={workers} complaints={complaints} />
+      {delayedComplaints.length > 0 && (
+        <Panel title="Delay Notifications" action={<Bell className="h-5 w-5 text-red-600" />}>
+          <div className="space-y-3">
+            {delayedComplaints.map((item) => (
+              <div key={item._id} className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800">
+                <p className="font-black">Complaint ID #{shortId(item)} has not been processed for 4 days</p>
+                <p className="mt-1 text-sm">{item.title} · {item.studentName} · priority escalates to {escalatedPriority(item.priority)}</p>
               </div>
+            ))}
+          </div>
+        </Panel>
+      )}
+      <div className="grid gap-5 xl:grid-cols-[1.2fr,0.8fr]">
+        <Panel title="Complaint Analytics">
+          <AnalyticsChart complaints={complaints} />
+        </Panel>
+        <Panel title="Admin Management">
+          <div className="space-y-3">
+            {['Hostel Admin', 'Block Admin', 'Maintenance Admin'].map((admin, index) => (
+              <div key={admin} className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                <div>
+                  <p className="font-bold">{admin}</p>
+                  <p className="text-sm text-slate-500">{index + 4} resolved this week</p>
+                </div>
+                <button className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700">{index === 2 ? 'Remove' : 'Active'}</button>
+              </div>
+            ))}
+            <button className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 font-bold text-white">
+              <Plus className="h-4 w-4" />
+              Add Admin
+            </button>
+          </div>
+        </Panel>
+      </div>
+      <Panel title="Unresolved & Escalation Monitor">
+        <div className="grid gap-4 md:grid-cols-2">
+          {complaints.filter((item) => !isSolvedComplaint(item)).map((item) => (
+            <div key={item._id} className={`rounded-2xl border p-4 ${isDelayedComplaint(item) ? 'border-red-200 bg-red-50' : 'border-slate-100 bg-slate-50'}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-black text-slate-950">{item.title}</p>
+                  <p className="mt-1 text-sm text-slate-500">{item.studentName} · {item.category}</p>
+                </div>
+                <PriorityBadge value={isDelayedComplaint(item) ? escalatedPriority(item.priority) : item.priority} />
+              </div>
+              <p className="mt-3 text-sm text-slate-600">{isDelayedComplaint(item) ? `Delayed complaint. Auto-priority: ${escalatedPriority(item.priority)}.` : 'Normal queue'}</p>
+              <button onClick={() => onStatus(item._id, 'Solved', 'Super Admin solved this complaint.')} className="mt-4 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white">Force Solve</button>
             </div>
-          </form>
+          ))}
+        </div>
+      </Panel>
+      <ComplaintBrowser
+        title="All Complaints"
+        complaints={complaints}
+        workers={workers}
+        role="SuperAdmin"
+        onStatus={onStatus}
+        onRemove={onRemove}
+      />
+    </DashboardShell>
+  );
+}
+
+function ManageWorkersPanel({ workers, complaints, onAddWorker, onDeleteWorker }) {
+  const [search, setSearch] = useState('');
+  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' });
+
+  const filteredWorkers = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return workers
+      .map((worker) => ({ ...worker, ...workerWorkload(worker, complaints) }))
+      .filter((worker) => !query || [worker.name, worker.email, worker.phone].filter(Boolean).some((value) => String(value).toLowerCase().includes(query)));
+  }, [workers, complaints, search]);
+
+  const submit = (event) => {
+    event.preventDefault();
+    onAddWorker(form);
+    setForm({ name: '', email: '', phone: '', password: '' });
+  };
+
+  return (
+    <Panel
+      id="manage-workers"
+      title="Manage Workers"
+      action={
+        <label className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600">
+          <Search className="h-4 w-4" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} className="w-48 bg-transparent" placeholder="Search worker" />
+        </label>
+      }
+    >
+      <form onSubmit={submit} className="grid gap-3 lg:grid-cols-[1fr,1fr,1fr,1fr,auto]">
+        <input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="rounded-2xl border border-slate-200 bg-white px-4 py-3" placeholder="Name" />
+        <input required type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="rounded-2xl border border-slate-200 bg-white px-4 py-3" placeholder="Email" />
+        <input required value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} className="rounded-2xl border border-slate-200 bg-white px-4 py-3" placeholder="Phone" />
+        <input required type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className="rounded-2xl border border-slate-200 bg-white px-4 py-3" placeholder="Password" />
+        <button className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 font-bold text-white">
+          <Plus className="h-5 w-5" />
+          Add
+        </button>
+      </form>
+
+      <div className="mt-5 overflow-x-auto">
+        <table className="min-w-full text-left text-sm">
+          <thead className="text-slate-500">
+            <tr>
+              {['Name', 'Email', 'Phone', 'Total Assigned Complaints', 'Action'].map((head) => (
+                <th key={head} className="whitespace-nowrap px-4 py-3 font-bold">{head}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {filteredWorkers.map((worker) => (
+              <tr key={worker.id || worker._id}>
+                <td className="px-4 py-4 font-semibold text-slate-950">{worker.name}</td>
+                <td className="px-4 py-4 text-slate-600">{worker.email}</td>
+                <td className="px-4 py-4 text-slate-600">{worker.phone || 'Not provided'}</td>
+                <td className="px-4 py-4 font-black text-slate-950">{worker.totalAssignedComplaints}</td>
+                <td className="px-4 py-4">
+                  <button onClick={() => onDeleteWorker(worker)} className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-3 py-2 font-bold text-white">
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {filteredWorkers.length === 0 && <p className="py-8 text-center text-slate-500">No workers found.</p>}
+      </div>
+    </Panel>
+  );
+}
+
+function WorkerWorkloadPanel({ workers, complaints }) {
+  const [selectedWorker, setSelectedWorker] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('All');
+
+  const rows = workers.map((worker) => ({ ...worker, ...workerWorkload(worker, complaints) }));
+
+  return (
+    <Panel
+      id="worker-workload-overview"
+      title="Worker Workload Overview"
+      action={
+        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600">
+          {['All', 'Pending', 'Assigned', 'In Progress', 'Solved'].map((item) => <option key={item}>{item}</option>)}
+        </select>
+      }
+    >
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-sm">
+          <thead className="text-slate-500">
+            <tr>
+              {['Worker Name', 'Total', 'Pending', 'Done'].map((head) => (
+                <th key={head} className="whitespace-nowrap px-4 py-3 font-bold">{head}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((worker) => (
+              <tr key={worker.id || worker._id} onClick={() => setSelectedWorker(worker)} className="cursor-pointer transition hover:bg-cyan-50/60">
+                <td className="px-4 py-4 font-semibold text-slate-950">{worker.name}</td>
+                <td className="px-4 py-4 font-black">{worker.totalAssignedComplaints}</td>
+                <td className="px-4 py-4 text-amber-700 font-black">{worker.pendingComplaints}</td>
+                <td className="px-4 py-4 text-emerald-700 font-black">{worker.completedComplaints}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {selectedWorker && (
+        <WorkerDetailsModal
+          worker={selectedWorker}
+          complaints={complaints.filter((complaint) => workerMatchesComplaint(selectedWorker, complaint))}
+          statusFilter={statusFilter}
+          onClose={() => setSelectedWorker(null)}
+        />
+      )}
+    </Panel>
+  );
+}
+
+function WorkerDetailsModal({ worker, complaints, statusFilter, onClose }) {
+  const filteredComplaints = complaints.filter((complaint) => statusFilter === 'All' || displayStatus(complaint) === statusFilter);
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/55 p-4 backdrop-blur-sm">
+      <section className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-3xl border border-white/70 bg-white p-5 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-black uppercase tracking-[0.2em] text-cyan-700">Worker Details</p>
+            <h2 className="mt-2 text-2xl font-black text-slate-950">{worker.name}</h2>
+            <p className="mt-1 text-slate-600">{worker.email} · {worker.phone || 'No phone'}</p>
+          </div>
+          <button onClick={onClose} className="grid h-10 w-10 place-items-center rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200" aria-label="Close worker details">
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
-        <div className="rounded-[2rem] border border-slate-800/90 bg-slate-900/80 p-8 shadow-soft">
-          <div className="mb-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm uppercase tracking-[0.3em] text-slate-400">My Complaints</p>
-              <h3 className="mt-2 text-2xl font-semibold text-white">Recent tickets</h3>
-            </div>
-            <div className="inline-flex items-center gap-2 rounded-3xl bg-slate-950/80 px-4 py-2 text-sm text-slate-300">
-              <ClipboardList className="h-4 w-4 text-sky-300" /> {complaints.length} items
-            </div>
-          </div>
-          {complaints.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-slate-800/70 bg-slate-950/70 p-8 text-center text-slate-400">
-              <p className="text-lg font-semibold text-white">No complaints yet</p>
-              <p className="mt-2 text-sm">Submit your first complaint to track it here.</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {complaints.map((item) => (
-                <article key={item._id} className="rounded-3xl border border-slate-800/90 bg-slate-950/80 p-5 shadow-soft transition duration-300 hover:-translate-y-1 hover:border-fuchsia-400/50 hover:bg-slate-900/95 hover:shadow-xl">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="font-semibold text-white">{item.title}</p>
-                      <p className="mt-2 text-sm text-slate-400">{item.description}</p>
-                    </div>
-                    <div className="flex flex-wrap gap-3">
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${priorityStyles[item.priority]}`}>{item.priority}</span>
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusStyles[item.status]}`}>{item.status}</span>
-                    </div>
-                  </div>
-                  <div className="mt-4 grid gap-3 text-sm text-slate-400 sm:grid-cols-2">
-                    <p className="rounded-2xl bg-slate-900/80 px-3 py-2">Category: {item.category}</p>
-                    <p className="rounded-2xl bg-slate-900/80 px-3 py-2">Assigned: {item.assignedTo}</p>
-                    <p className="rounded-2xl bg-slate-900/80 px-3 py-2">Location: {item.location}</p>
-                    <p className="rounded-2xl bg-slate-900/80 px-3 py-2">Contact: {item.contact}</p>
-                  </div>
-                  {item.status === 'Awaiting Confirmation' && (
-                    <div className="mt-4 flex justify-end">
-                      <button
-                        onClick={() => onConfirm(item._id)}
-                        className="rounded-3xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400"
-                      >
-                        Done
-                      </button>
-                    </div>
-                  )}
-                </article>
+        <div className="mt-5 overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead className="text-slate-500">
+              <tr>
+                {['Complaint ID', 'Student Name', 'Complaint Type', 'Description', 'Status', 'Submitted Date', 'Before Image', 'After Image'].map((head) => (
+                  <th key={head} className="whitespace-nowrap px-4 py-3 font-bold">{head}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredComplaints.map((complaint) => (
+                <tr key={complaint._id}>
+                  <td className="px-4 py-4 font-mono text-xs text-slate-500">#{shortId(complaint)}</td>
+                  <td className="px-4 py-4 font-semibold">{complaint.studentName}</td>
+                  <td className="px-4 py-4">{complaint.category}</td>
+                  <td className="max-w-sm px-4 py-4 text-slate-600">{complaint.description}</td>
+                  <td className="px-4 py-4"><StatusBadge value={displayStatus(complaint)} /></td>
+                  <td className="px-4 py-4 text-slate-500">{formatDateTime(complaint.created_at || complaint.createdAt)}</td>
+                  <td className="px-4 py-4"><ImageStrip compact images={imageList(complaint.before_image || complaint.images)} /></td>
+                  <td className="px-4 py-4"><ImageStrip compact images={imageList(complaint.after_image || complaint.workerProofImages)} /></td>
+                </tr>
               ))}
-            </div>
-          )}
+            </tbody>
+          </table>
+          {filteredComplaints.length === 0 && <p className="py-8 text-center text-slate-500">No assigned complaints match this filter.</p>}
         </div>
       </section>
     </div>
   );
 }
 
-function AdminDashboard({ user, complaints, onAssign, onUpdate }) {
-  const [selectedWorker, setSelectedWorker] = useState('Vikram');
+function ComplaintBrowser({ title, complaints, workers = [], role, onAssign, onStatus, onRemove }) {
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
-  if (!user || user.role !== 'Admin') {
-    return <Unauthenticated message="Admin access only. Please login with an admin account." />;
-  }
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return complaints.filter((item) => {
+      const status = displayStatus(item);
+      const matchesStatus =
+        statusFilter === 'All' ||
+        status === statusFilter ||
+        (statusFilter === 'Delayed' && isDelayedComplaint(item));
+      const matchesSearch =
+        !query ||
+        [item.studentName, item._id, item.category, item.title]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(query));
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [complaints, search, statusFilter]);
+
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginatedData = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
-    <div className="space-y-8">
-      <div className="rounded-[2rem] border border-slate-800/90 bg-slate-900/80 p-8 shadow-soft">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-indigo-300">Admin Dashboard</p>
-            <h2 className="mt-3 text-3xl font-semibold text-white">Manage all complaints</h2>
-            <p className="mt-2 text-slate-400">Assign workers, update statuses, and verify completion.</p>
-          </div>
-          <div className="inline-flex items-center gap-3 rounded-3xl bg-slate-950/80 px-5 py-4 text-slate-300 shadow-soft">
-            <Users className="h-5 w-5 text-indigo-300" />
-            <div>
-              <p className="text-sm text-slate-400">Role</p>
-              <p className="font-semibold text-white">Admin</p>
-            </div>
-          </div>
+    <Panel
+      id="all-complaints"
+      title={title}
+      action={
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <label className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600">
+            <Search className="h-4 w-4" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="w-48 bg-transparent"
+              placeholder="Student, ID, category"
+            />
+          </label>
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600">
+            {['All', 'Pending', 'Assigned', 'In Progress', 'Solved', 'Delayed'].map((item) => <option key={item}>{item}</option>)}
+          </select>
         </div>
-      </div>
-      <div className="rounded-[2rem] border border-slate-800/90 bg-slate-900/80 p-6 shadow-soft overflow-x-auto">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-400">All Complaints</p>
-            <h3 className="mt-2 text-2xl font-semibold text-white">Ticket management</h3>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="rounded-3xl border border-slate-800 bg-slate-950/70 px-4 py-2 text-sm text-slate-300">{complaints.length} complaints</span>
-            <div className="flex items-center gap-2 rounded-3xl border border-slate-800 bg-slate-950/70 px-4 py-2 text-sm text-slate-300">
-              <BadgeCheck className="h-4 w-4 text-sky-300" /> Verify before complete
-            </div>
-          </div>
-        </div>
-        <table className="min-w-full border-separate border-spacing-y-4 text-left text-sm">
-          <thead>
-            <tr className="text-slate-400">
-              <th className="px-4 py-3">Student</th>
-              <th className="px-4 py-3">Contact No.</th>
-              <th className="px-4 py-3">Location</th>
-              <th className="px-4 py-3">Description</th>
-              <th className="px-4 py-3">Priority</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Worker</th>
-              <th className="px-4 py-3">Actions</th>
+      }
+    >
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-sm">
+          <thead className="text-slate-500">
+            <tr>
+              {['Complaint ID', 'Student Name', 'Issue', 'Priority', 'Status', 'Proof', 'Assign Worker', 'Actions'].map((head) => (
+                <th key={head} className="whitespace-nowrap px-4 py-3 font-bold">{head}</th>
+              ))}
             </tr>
           </thead>
-          <tbody>
-            {complaints.map((item) => (
-              <tr key={item._id} className="rounded-3xl bg-slate-950/90 shadow-soft">
-                <td className="px-4 py-4 font-medium text-white">{item.studentName}</td>
-                <td className="px-4 py-4 text-slate-300">{item.contact}</td>
-                <td className="px-4 py-4 text-slate-300">{item.location}</td>
-                <td className="px-4 py-4 max-w-[24rem] break-words text-slate-300">{item.description}</td>
-                <td className="px-4 py-4 text-slate-300">{item.priority}</td>
-                <td className="px-4 py-4">
-                  <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusStyles[item.status]}`}>{item.status}</span>
+          <tbody className="divide-y divide-slate-100">
+            {paginatedData.map((item) => (
+              <tr
+                key={item._id}
+                onClick={() => setSelected(item)}
+                className={`cursor-pointer transition hover:bg-cyan-50/60 ${isDelayedComplaint(item) ? 'bg-red-50 text-red-950' : ''}`}
+              >
+                <td className="px-4 py-4 font-mono text-xs text-slate-500">#{shortId(item)}</td>
+                <td className="px-4 py-4 font-semibold">{item.studentName}</td>
+                <td className="max-w-sm px-4 py-4">
+                  <p className="font-semibold text-slate-950">{item.title}</p>
+                  <p className="mt-1 text-slate-500">{item.category}</p>
                 </td>
-                <td className="px-4 py-4 text-slate-300">{item.assignedTo}</td>
-                <td className="px-4 py-4 space-y-3">
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => onUpdate(item._id, 'Pending')}
-                      className="rounded-2xl bg-slate-800 px-3 py-2 text-xs text-slate-200 transition hover:bg-slate-700"
-                    >
-                      Pending
-                    </button>
-                    <button
-                      onClick={() => onUpdate(item._id, 'In Progress')}
-                      className="rounded-2xl bg-slate-800 px-3 py-2 text-xs text-slate-200 transition hover:bg-slate-700"
-                    >
-                      In Progress
-                    </button>
-                    <button
-                      onClick={() => onUpdate(item._id, 'Awaiting Confirmation')}
-                      className="rounded-2xl bg-slate-800 px-3 py-2 text-xs text-slate-200 transition hover:bg-slate-700"
-                    >
-                      Verify Complete
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <select
-                      value={selectedWorker}
-                      onChange={(e) => setSelectedWorker(e.target.value)}
-                      className="rounded-2xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200"
-                    >
-                      <option>Vikram</option>
-                      <option>Priya</option>
-                      <option>Rahul</option>
+                <td className="px-4 py-4"><PriorityBadge value={isDelayedComplaint(item) ? escalatedPriority(item.priority) : item.priority} /></td>
+                <td className="px-4 py-4"><StatusBadge value={isDelayedComplaint(item) ? 'Delayed' : displayStatus(item)} /></td>
+                <td className="px-4 py-4"><ImageGallery compact images={[...imageList(item.images || item.before_image), ...imageList(item.workerProofImages || item.after_image)]} /></td>
+                <td className="px-4 py-4" onClick={(event) => event.stopPropagation()}>
+                  {onAssign ? (
+                    <select onChange={(event) => {
+                      const worker = workers.find((entry) => (entry.id || entry._id) === event.target.value);
+                      if (worker) onAssign(item._id, worker);
+                    }} defaultValue="" className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                      <option value="">{item.assignedTo && item.assignedTo !== 'Not assigned' ? item.assignedTo : 'Assign Worker'}</option>
+                      {workers.map((worker) => <option key={worker.id || worker._id} value={worker.id || worker._id}>{worker.name}</option>)}
                     </select>
-                    <button
-                      onClick={() => onAssign(item._id, selectedWorker)}
-                      className="rounded-2xl bg-indigo-500 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-400"
-                    >
-                      Assign Worker
-                    </button>
+                  ) : (
+                    <span className="text-slate-500">{item.assignedTo || 'Not assigned'}</span>
+                  )}
+                </td>
+                <td className="px-4 py-4" onClick={(event) => event.stopPropagation()}>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => onStatus(item._id, 'Verified', 'Admin verified the solved image.')} className="rounded-xl bg-indigo-600 px-3 py-2 font-bold text-white">Verify</button>
+                    <button onClick={() => onStatus(item._id, 'Solved', 'Complaint marked as Solved.')} className="rounded-xl bg-emerald-600 px-3 py-2 font-bold text-white">Solve</button>
+                    {isSolvedComplaint(item) && (
+                      <button onClick={() => onRemove(item, role)} className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-3 py-2 font-bold text-white">
+                        <Trash2 className="h-4 w-4" />
+                        Remove
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        {filtered.length === 0 && <p className="py-8 text-center text-slate-500">No complaints match this view.</p>}
+        {filtered.length > 0 && (
+          <Pagination 
+            currentPage={currentPage} 
+            totalPages={totalPages} 
+            onPageChange={setCurrentPage} 
+          />
+        )}
       </div>
+      {selected && <ComplaintDetailsModal complaint={selected} onClose={() => setSelected(null)} />}
+    </Panel>
+  );
+}
+
+function ComplaintDetailsModal({ complaint, onClose }) {
+  const beforeImages = imageList(complaint.before_image || complaint.images);
+  const afterImages = imageList(complaint.after_image || complaint.workerProofImages);
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/55 p-4 backdrop-blur-sm">
+      <section className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-white/70 bg-white p-5 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-black uppercase tracking-[0.2em] text-cyan-700">Complaint #{shortId(complaint)}</p>
+            <h2 className="mt-2 text-2xl font-black text-slate-950">{complaint.title}</h2>
+            <p className="mt-2 text-slate-600">{complaint.description}</p>
+          </div>
+          <button onClick={onClose} className="grid h-10 w-10 place-items-center rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200" aria-label="Close complaint details">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <DetailCard title="Complaint Full Details" rows={[
+            ['Student Name', complaint.studentName],
+            ['Student ID / Room No', complaint.studentId || complaint.student_id || complaint.roomNo || complaint.location || 'Not provided'],
+            ['Category', complaint.category],
+            ['Submission Date & Time', formatDateTime(complaint.created_at || complaint.createdAt)],
+            ['Current Status', displayStatus(complaint)],
+          ]} />
+          <DetailCard title="Worker Details" rows={[
+            ['Worker Name', complaint.workerName || complaint.assignedTo || 'Not assigned'],
+            ['Worker ID', complaint.workerId || complaint.worker_id || 'Not provided'],
+            ['Contact Info', complaint.workerContact || complaint.worker_contact || complaint.contact || 'Not provided'],
+            ['Assigned Date', formatDateTime(complaint.assigned_at || complaint.assignedAt)],
+          ]} />
+        </div>
+
+        <div className="mt-6">
+          <h3 className="text-lg font-black text-slate-950">Images Section</h3>
+          <div className="mt-3 grid gap-4 md:grid-cols-2">
+            <ImageComparePanel title="Before Image" images={beforeImages} />
+            <ImageComparePanel title="After Image" images={afterImages} />
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <h3 className="text-lg font-black text-slate-950">View Timeline</h3>
+          <div className="mt-3 grid gap-3 md:grid-cols-4">
+            {[
+              ['Complaint Submitted', complaint.created_at || complaint.createdAt],
+              ['Assigned to Worker', complaint.assigned_at || complaint.assignedAt],
+              ['Work Started', complaint.started_at || complaint.startedAt],
+              ['Completed', complaint.completed_at || complaint.completedAt || complaint.resolvedAt],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                <CalendarClock className="h-5 w-5 text-cyan-700" />
+                <p className="mt-3 font-bold text-slate-950">{label}</p>
+                <p className="mt-1 text-sm text-slate-500">{formatDateTime(value)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
 
-function WorkerDashboard({ user, complaints }) {
-  if (!user || user.role !== 'Worker') {
-    return <Unauthenticated message="Worker access only. Please login with a worker account." />;
-  }
-
-  const assignedList = complaints.filter((item) => item.assignedTo && item.assignedTo !== 'Not assigned');
-
+function DetailCard({ title, rows }) {
   return (
-    <div className="space-y-8">
-      <div className="rounded-[2rem] border border-slate-800/90 bg-slate-900/80 p-8 shadow-soft">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-indigo-300">Worker Dashboard</p>
-            <h2 className="mt-3 text-3xl font-semibold text-white">Assigned repair tasks</h2>
-            <p className="mt-2 text-slate-400">Review your assigned work and check status details.</p>
+    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+      <h3 className="font-black text-slate-950">{title}</h3>
+      <dl className="mt-4 space-y-3">
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex justify-between gap-4 text-sm">
+            <dt className="font-semibold text-slate-500">{label}</dt>
+            <dd className="text-right font-bold text-slate-900">{value || 'Not provided'}</dd>
           </div>
-          <div className="inline-flex items-center gap-3 rounded-3xl bg-slate-950/80 px-5 py-4 text-slate-300 shadow-soft">
-            <Users className="h-5 w-5 text-sky-300" />
-            <div>
-              <p className="text-sm text-slate-400">Role</p>
-              <p className="font-semibold text-white">Worker</p>
-            </div>
-          </div>
-        </div>
-      </div>
-      {assignedList.length === 0 ? (
-        <div className="rounded-[2rem] border border-slate-800/90 bg-slate-900/80 p-10 text-center text-slate-300 shadow-soft">
-          <p className="text-xl font-semibold text-white">No assigned tasks yet</p>
-          <p className="mt-3 text-slate-400">Once an admin assigns a complaint to you, it will appear here.</p>
-        </div>
-      ) : (
-        <div className="grid gap-6 md:grid-cols-2">
-          {assignedList.map((item) => (
-            <div key={item._id} className="rounded-[2rem] border border-slate-800/90 bg-slate-950/80 p-6 shadow-soft transition hover:-translate-y-1">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm uppercase tracking-[0.3em] text-slate-400">{item.category}</p>
-                  <h3 className="mt-2 text-xl font-semibold text-white">{item.title}</h3>
-                </div>
-                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusStyles[item.status]}`}>{item.status}</span>
-              </div>
-              <p className="mt-4 text-slate-300">{item.description}</p>
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-3xl bg-slate-900/70 p-4 text-slate-300">
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Priority</p>
-                  <p className="mt-2 font-semibold text-white">{item.priority}</p>
-                </div>
-                <div className="rounded-3xl bg-slate-900/70 p-4 text-slate-300">
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Student</p>
-                  <p className="mt-2 font-semibold text-white">{item.studentName}</p>
-                </div>
-              </div>
-            </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+function ImageComparePanel({ title, images }) {
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+      <p className="font-black text-slate-950">{title}</p>
+      {images.length ? (
+        <div className="mt-3 grid gap-3">
+          {images.slice(0, 2).map((src, index) => (
+            <a key={`${src}-${index}`} href={`${API_BASE}${src}`} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <img src={`${API_BASE}${src}`} alt={title} className="h-64 w-full object-cover" />
+            </a>
           ))}
         </div>
+      ) : (
+        <div className="mt-3 grid h-64 place-items-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm font-semibold text-slate-400">No image uploaded</div>
       )}
     </div>
   );
 }
 
-function Unauthenticated({ message }) {
+function DashboardShell({ title, subtitle, role, menu, children }) {
   return (
-    <div className="rounded-[2rem] border border-slate-800/90 bg-slate-900/80 p-10 text-center shadow-soft">
-      <h2 className="text-2xl font-semibold text-white">Access Restricted</h2>
-      <p className="mt-4 text-slate-400">{message}</p>
-      <p className="mt-2 text-slate-500">Use the login page to enter with the correct role.</p>
-      <NavLink to="/auth" className="mt-6 inline-flex rounded-3xl bg-indigo-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-indigo-400">
-        Go to Login
-      </NavLink>
+    <main className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[16rem,1fr] lg:px-8">
+      <aside className="h-fit rounded-3xl border border-white/70 bg-white/70 p-4 shadow-xl shadow-slate-200/60 backdrop-blur">
+        <div className="flex items-center gap-3 rounded-2xl bg-slate-950 p-4 text-white">
+          <LayoutDashboard className="h-5 w-5" />
+          <div>
+            <p className="text-xs text-slate-300">Role</p>
+            <p className="font-bold">{role}</p>
+          </div>
+        </div>
+        <nav className="mt-4 space-y-2">
+          {menu.map((item) => (
+            <a key={item} href={`#${item.toLowerCase().replaceAll(' ', '-')}`} className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-100 hover:text-slate-950">
+              <ListChecks className="h-4 w-4" />
+              {item}
+            </a>
+          ))}
+        </nav>
+      </aside>
+      <section className="min-w-0 space-y-6">
+        <div className="rounded-3xl border border-white/70 bg-white/70 p-6 shadow-xl shadow-slate-200/60 backdrop-blur">
+          <p className="text-sm font-bold uppercase tracking-[0.2em] text-cyan-700">{role}</p>
+          <h1 className="mt-2 text-3xl font-black text-slate-950">{title}</h1>
+          <p className="mt-2 text-slate-600">{subtitle}</p>
+          <Lifecycle />
+        </div>
+        {children}
+      </section>
+    </main>
+  );
+}
+
+function StatsGrid({ stats }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {stats.map(([label, value, Icon]) => (
+        <div key={label} className="rounded-2xl border border-white/70 bg-white/80 p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-bold text-slate-500">{label}</p>
+            <Icon className="h-5 w-5 text-cyan-700" />
+          </div>
+          <p className="mt-3 text-3xl font-black text-slate-950">{value}</p>
+        </div>
+      ))}
     </div>
+  );
+}
+
+function Panel({ title, action, id, children }) {
+  return (
+    <section id={id} className="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-xl shadow-slate-200/50 backdrop-blur">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-xl font-black text-slate-950">{title}</h2>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function ComplaintTable({ complaints }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-left text-sm">
+        <thead className="text-slate-500">
+          <tr>
+            {['Title', 'Category', 'Status', 'Priority', 'Date'].map((head) => (
+              <th key={head} className="px-4 py-3 font-bold">{head}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {complaints.map((item) => (
+            <tr key={item._id}>
+              <td className="max-w-sm px-4 py-4 font-semibold text-slate-950">{item.title}</td>
+              <td className="px-4 py-4 text-slate-600">{item.category}</td>
+              <td className="px-4 py-4"><StatusBadge value={displayStatus(item)} /></td>
+              <td className="px-4 py-4"><PriorityBadge value={item.priority} /></td>
+              <td className="px-4 py-4 text-slate-500">{formatDate(item.createdAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {complaints.length === 0 && <p className="py-8 text-center text-slate-500">No complaints yet.</p>}
+    </div>
+  );
+}
+
+function Lifecycle() {
+  return (
+    <div className="mx-auto mt-6 flex max-w-4xl flex-wrap justify-center gap-2">
+      {statusFlow.map((status, index) => (
+        <span key={status} className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm ring-1 ring-slate-200">
+          {index + 1}. {status}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function StatusBadge({ value }) {
+  return <span className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-black ring-1 ${statusStyles[value] || statusStyles.Pending}`}>{value}</span>;
+}
+
+function PriorityBadge({ value }) {
+  return <span className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-black ring-1 ${priorityStyles[value] || priorityStyles.Low}`}>{value || 'Low'}</span>;
+}
+
+function ImageStrip({ images = [], compact = false, label = 'Image' }) {
+  return <ImageGallery images={images} compact={compact} label={label} />;
+}
+
+function Filter({ value, onChange }) {
+  return (
+    <label className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600">
+      <Search className="h-4 w-4" />
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="bg-transparent">
+        <option>All</option>
+        {Object.keys(categoryPriority).map((item) => <option key={item}>{item}</option>)}
+      </select>
+    </label>
+  );
+}
+
+function Restricted({ role }) {
+  return (
+    <main className="grid min-h-[calc(100vh-73px)] place-items-center px-4">
+      <div className="max-w-md rounded-3xl border border-white/70 bg-white/80 p-8 text-center shadow-xl">
+        <Lock className="mx-auto h-10 w-10 text-slate-950" />
+        <h1 className="mt-4 text-2xl font-black text-slate-950">Role-based access control</h1>
+        <p className="mt-3 text-slate-600">{role} access only. Login with the correct role to open this dashboard.</p>
+        <NavLink to="/login" className="mt-6 inline-flex rounded-2xl bg-slate-950 px-5 py-3 font-bold text-white">Go to Login</NavLink>
+      </div>
+    </main>
   );
 }
 
 function NotFound() {
   return (
-    <div className="rounded-[2rem] border border-slate-800/90 bg-slate-900/80 p-12 text-center shadow-soft">
-      <p className="text-sm uppercase tracking-[0.3em] text-indigo-300">404 error</p>
-      <h1 className="mt-5 text-4xl font-semibold text-white">Page not found</h1>
-      <p className="mt-4 text-slate-400">The route you are looking for does not exist.</p>
-      <NavLink to="/" className="mt-8 inline-flex rounded-3xl bg-indigo-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-indigo-400">
-        Return home
-      </NavLink>
-    </div>
+    <main className="grid min-h-[calc(100vh-73px)] place-items-center px-4">
+      <div className="rounded-3xl bg-white/80 p-8 text-center shadow-xl">
+        <FileImage className="mx-auto h-10 w-10 text-slate-400" />
+        <h1 className="mt-4 text-2xl font-black">Page not found</h1>
+        <NavLink to="/" className="mt-6 inline-flex rounded-2xl bg-slate-950 px-5 py-3 font-bold text-white">Return Home</NavLink>
+      </div>
+    </main>
   );
+}
+
+function displayStatus(item) {
+  if (['Resolved', 'Verified', 'Solved'].includes(item.status)) return 'Solved';
+  if (['Completed', 'Awaiting Verification'].includes(item.status)) return 'In Progress';
+  return item.status || 'Pending';
+}
+
+function inferComplaintCategory({ title = '', description = '', location = '' }) {
+  const text = `${title} ${description} ${location}`.toLowerCase();
+  const match = Object.entries(categoryKeywords).find(([, keywords]) =>
+    keywords.some((keyword) => text.includes(keyword))
+  );
+
+  return match?.[0] || 'Others';
+}
+
+function formatDate(value) {
+  if (!value) return 'Today';
+  return new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(value));
+}
+
+function formatDateTime(value) {
+  if (!value) return 'Not recorded';
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+function hasRole(user, role) {
+  return user?.role === role;
+}
+
+function resolutionRate(complaints) {
+  if (!complaints.length) return 0;
+  const resolved = complaints.filter(isSolvedComplaint).length;
+  return Math.round((resolved / complaints.length) * 100);
+}
+
+function isSolvedComplaint(item) {
+  return displayStatus(item) === 'Solved';
+}
+
+function workerMatchesComplaint(worker, complaint) {
+  const workerId = worker?.id || worker?._id;
+  return (
+    String(complaint.assigned_worker_id || '') === String(workerId || '') ||
+    String(complaint.workerId || '') === String(workerId || '') ||
+    complaint.assignedTo === worker?.name ||
+    complaint.workerName === worker?.name
+  );
+}
+
+function workerWorkload(worker, complaints) {
+  const assigned = complaints.filter((complaint) => workerMatchesComplaint(worker, complaint));
+  const doneStatuses = ['Completed', 'Verified', 'Resolved', 'Solved'];
+  return {
+    totalAssignedComplaints: assigned.length,
+    pendingComplaints: assigned.filter((complaint) => !doneStatuses.includes(complaint.status)).length,
+    completedComplaints: assigned.filter((complaint) => doneStatuses.includes(complaint.status)).length,
+  };
+}
+
+function isDelayedComplaint(item) {
+  if (isSolvedComplaint(item) || displayStatus(item) === 'In Progress') return false;
+  const reference = new Date(item.created_at || item.createdAt || Date.now());
+  return Date.now() - reference.getTime() >= 4 * 86400000;
+}
+
+function escalatedPriority(priority = 'Low') {
+  if (priority === 'Urgent') return 'Urgent';
+  if (priority === 'High') return 'Urgent';
+  if (priority === 'Medium') return 'High';
+  return 'Medium';
+}
+
+function shortId(item) {
+  return String(item._id || '000000').slice(-6).toUpperCase();
+}
+
+function imageList(value) {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
 }
 
 export default App;
