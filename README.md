@@ -2,7 +2,7 @@
 
 ## Overview
 
-The **Smart Hostel Grievance System** is a full-stack web application designed to streamline the process of submitting, tracking, and resolving complaints within a hostel environment. It provides separate interfaces and workflows for students, workers, administrators, and super administrators, ensuring transparency, accountability, and efficiency in grievance management.
+The **Smart Hostel Grievance System** is a full-stack application built to simplify hostel complaint management. It supports distinct roles for students, workers, admins, and super administrators, enabling efficient complaint submission, assignment, resolution, and monitoring.
 
 ---
 
@@ -14,51 +14,54 @@ The **Smart Hostel Grievance System** is a full-stack web application designed t
 | Styling | Tailwind CSS |
 | Backend | Node.js, Express |
 | Database | MongoDB |
-| File Storage | Local filesystem (Multer) |
+| File Uploads | Multer / Local filesystem |
+| Scheduling | node-cron |
 
 ---
 
-## Features
+## Core Functionality
 
 ### Student Portal
-- **User Registration & Login** — Secure authentication system for students
-- **Submit Complaints** — Create complaints with category, priority, title, and description
-- **Upload Images** — Attach up to 5 images (JPG, PNG) per complaint
-- **Track Status** — View real-time status updates on submitted complaints
-- **Complaint History** — Access all previously submitted complaints
-- **Auto Priority Calculation** — Priority automatically assigned based on category and keywords
+- Register and login as a student
+- Submit complaints with title, description, category, priority, room/location, and contact details
+- Upload up to 5 images per complaint
+- View complaint history and current status updates
+- Auto category detection based on complaint text
+- Real-time status tracking
 
 ### Worker Portal
-- **Worker Login** — Dedicated authentication for hostel workers
-- **View Assigned Complaints** — See complaints assigned by admins
-- **Update Status** — Change status from Pending → In Progress → Awaiting Confirmation
-- **Add Remarks** — Add work notes and descriptions
+- Login as a worker
+- View complaints assigned to the worker
+- Upload proof images and work remarks
+- Mark complaints as completed
+- Track assigned workload
 
 ### Admin Portal
-- **Admin Login** — Dedicated authentication for administrators
-- **View All Complaints** — See all submitted complaints in the system
-- **Filter & Search** — Filter complaints by status, category, or priority
-- **Assign Complaints** — Assign complaints to specific workers
-- **Update Status** — Track and update complaint progress
-- **Verify Completion** — Confirm and close resolved complaints
-- **Escalate Complaints** — Mark complaints for escalation to SuperAdmin
+- Login as an admin
+- View all registered complaints
+- Filter and search by status, category, priority, and complaint text
+- Assign complaints to workers
+- Update complaint status and verify resolutions
+- Remove only solved complaints from active dashboard
 
 ### SuperAdmin Portal
-- **Central Authority** — Oversight of entire system
-- **View All Complaints** — See complaints across all admins
-- **Monitor Admin Performance** — Track admin activity
-- **Delayed Complaints** — View complaints pending > 4 days
-- **Escalated Complaints** — Review escalated issues
-- **Filter & Search** — Filter by status, escalated flag
+- Login as super administrator
+- Monitor system-wide complaints and admin performance
+- View delayed complaints older than configured days
+- View escalated complaints flagged by the backend
+- Control priority and resolve overdue cases
 
 ---
 
-## Complaint Workflow
+## Complaint & Monitoring Workflow
 
 ### Status Flow
-```
-Pending → In Progress → Awaiting Confirmation → Completed
-```
+- `Pending`
+- `Assigned`
+- `In Progress`
+- `Awaiting Verification`
+- `Solved`
+- `Resolved`
 
 ### Categories
 - Water
@@ -71,71 +74,62 @@ Pending → In Progress → Awaiting Confirmation → Completed
 - Food
 - Others
 
-### Priority Levels
-- **High** — Urgent issues (electricity, water leaks, security)
-- **Medium** — Moderate issues (internet, cleaning, partial damage)
-- **Low** — Minor issues (furniture, tiles, cosmetic)
+### Priority System
+- **High** — urgent issues like water leaks, electricity faults, security breaches
+- **Medium** — moderate issues like internet, cleaning, food service
+- **Low** — minor issues like furniture or tiling repairs
 
-### Auto Priority Calculation
-The system automatically assigns priority based on:
-- **Category**: Electricity & Water = High, Internet & Cleaning = Medium, Furniture & Tiles = Low
-- **Keywords**: Urgent/danger/fire/shock = High, slow/issue/delay = Medium
-
----
-
-## New Features (v1.1.0)
-
-### Image Upload in Complaints
-- Students can upload **up to 5 images** (JPG, PNG) per complaint
-- Images are stored locally in the `uploads/` directory
-- Image paths are saved in MongoDB
-- Image previews shown before submission
-- Clickable thumbnails in complaint details
-
-### Central Authority (SuperAdmin)
-- New role: **SuperAdmin** for centralized oversight
-- **SuperAdmin can:**
-  - View all complaints across the system
-  - Monitor admin performance
-  - See complaints pending > 4 days (delayed)
-  - See escalated complaints
-  - Filter by status, escalated flag
+### Delay Monitoring
+- Complaints not processed within the configured delay window are marked as **Delayed**
+- The delay threshold is set in `server.js` at the line:
+  - `fourDaysAgo.setDate(fourDaysAgo.getDate() - 4);`
+- Delayed complaints are surfaced in the SuperAdmin dashboard
+- A cron job runs daily at midnight to detect and escalate overdue complaints
 
 ---
 
-## API Endpoints
+## SuperAdmin Alerting
+- Delayed complaints are highlighted in red on the SuperAdmin dashboard
+- Escalated complaints are flagged with `escalated: true`
+- SuperAdmin can view delayed issues and force resolve if needed
 
-### Student APIs
+---
+
+## API Summary
+
+### Authentication & User APIs
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/students/register` | Register new student |
+| POST | `/api/students/register` | Register student |
 | POST | `/api/students/login` | Student login |
-| GET | `/api/students/complaints` | Get student's complaints |
-| POST | `/api/students/complaints` | Submit new complaint |
-| PUT | `/api/students/complaints/:id` | Update complaint |
+| POST | `/api/worker/login` | Worker login |
+| POST | `/api/admin/login` | Admin login |
+| POST | `/api/superadmin/login` | SuperAdmin login |
 
-### Admin APIs
+### Complaint APIs
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/admin/login` | Admin login |
-| GET | `/api/admin/complaints` | Get all complaints |
-| PUT | `/api/admin/complaints/:id` | Update complaint status |
-| POST | `/api/admin/complaints/:id/assign` | Assign to worker |
+| GET | `/api/complaints` | Get complaints for current user/role |
+| POST | `/api/complaints` | Create new complaint |
+| PATCH | `/api/complaints/:id/status` | Update complaint status |
+| PATCH | `/api/complaints/:id/assign` | Assign complaint to worker |
+| PATCH | `/api/complaints/:id/priority` | Change complaint priority (SuperAdmin only) |
+| DELETE | `/api/complaints/:id` | Remove solved complaint |
 
 ### Worker APIs
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/workers/login` | Worker login |
-| GET | `/api/workers/complaints` | Get assigned complaints |
-| PUT | `/api/workers/complaints/:id` | Update complaint status |
+| GET | `/api/admin/workers` | Get all workers |
+| POST | `/api/admin/workers` | Add a worker |
+| DELETE | `/api/admin/workers/:id` | Remove a worker |
+| GET | `/api/admin/workers/:id/complaints` | Get a worker's assigned complaints |
 
 ### SuperAdmin APIs
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/superadmin/login` | SuperAdmin login |
-| GET | `/api/superadmin/complaints` | Get all system complaints |
 | GET | `/api/superadmin/delayed` | Get delayed complaints |
 | GET | `/api/superadmin/escalated` | Get escalated complaints |
+| PATCH | `/api/superadmin/complaints/:id/override` | Override complaint state |
 
 ---
 
@@ -144,22 +138,18 @@ The system automatically assigns priority based on:
 | Role | Email | Password |
 |------|-------|----------|
 | Student | Register new account | — |
-| Worker | `worker@hostel.com` | `Worker@123` |
+| Worker | `vikram@hostel.com` | `Worker@123` |
+| Worker | `rajesh@hostel.com` | `Worker@123` |
 | Admin | `admin@hostel.com` | `Admin@123` |
 | SuperAdmin | `superadmin@hostel.com` | `SuperAdmin@123` |
 
 ---
 
-## Installation & Setup
+## Installation & Run
 
 ```bash
-# Install dependencies
 npm install
-
-# Start development server (frontend)
 npm run dev
-
-# Start backend server
 npm run server
 ```
 
@@ -170,34 +160,37 @@ npm run server
 ```
 system/
 ├── src/
-│   ├── App.jsx          # Main React component
-│   ├── main.jsx         # Entry point
-│   └── index.css       # Global styles
-├── uploads/             # Image storage directory
-├── server.js            # Express backend
-├── package.json
+│   ├── App.jsx
+│   ├── main.jsx
+│   ├── index.css
+│   ├── components/
+│   └── utils/
+├── server/
+│   ├── routes/
+│   ├── config/
+│   ├── middleware/
+│   └── utils/
+├── uploads/
+├── server.js
 ├── vite.config.js
 ├── tailwind.config.js
-└── postcss.config.js
+├── postcss.config.js
+└── package.json
 ```
+
+---
+
+## Notes
+- Image uploads are stored in `uploads/` and served via Express static middleware.
+- Delay threshold can be changed in `server.js`.
+- SuperAdmin has system-wide visibility for delayed and escalated complaints.
 
 ---
 
 ## Version History
 
-- **v1.0.0** — Initial release with Student, Worker, Admin portals
-- **v1.1.0** — Added SuperAdmin, Image Upload, Delayed complaint tracking
-
-### Feature 3: Auto Priority Escalation
-- Complaints not updated within **4 days** are automatically escalated
-- Priority escalation: **Low → Medium → High**
-- Escalated complaints marked with flag: `escalated: true`
-- Cron job runs daily at midnight
-- Visual indicators in UI:
-  - "Escalated" badge on complaints
-  - Delayed complaints highlighted in red
-
----
+- **v1.0.0** — Student, Worker, Admin portals with complaint lifecycle
+- **v1.1.0** — Added SuperAdmin, image upload, and delayed complaint tracking
 
 ## System Architecture
 

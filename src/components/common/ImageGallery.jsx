@@ -6,8 +6,8 @@ export function ImageGallery({ images = [], label = 'Image', compact = false }) 
   const [selectedIndex, setSelectedIndex] = useState(null);
 
   if (!images.length) {
-    return compact ? <span className="text-xs text-slate-400">No image</span> : (
-      <div className="mt-3 grid h-64 place-items-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm font-semibold text-slate-400">
+    return compact ? <span className="text-xs text-slate-500">No image</span> : (
+      <div className="mt-3 grid h-64 place-items-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm font-semibold text-slate-500">
         No image uploaded
       </div>
     );

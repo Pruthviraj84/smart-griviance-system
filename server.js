@@ -4,15 +4,19 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cron from 'node-cron';
+import { createServer } from 'http';
 
 import { connectDB, getCollections } from './server/config/db.js';
 import { escalatePriority } from './server/utils/complaintUtils.js';
+import { initSocket } from './server/utils/socket.js';
 
 import authRoutes from './server/routes/authRoutes.js';
 import complaintRoutes from './server/routes/complaintRoutes.js';
 import workerRoutes from './server/routes/workerRoutes.js';
 import adminRoutes from './server/routes/adminRoutes.js';
 import superAdminRoutes from './server/routes/superAdminRoutes.js';
+import chatRoutes from './server/routes/chatRoutes.js';
+import notificationRoutes from './server/routes/notificationRoutes.js';
 
 dotenv.config();
 
@@ -20,14 +24,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 const app = express();
+const httpServer = createServer(app);
 const DEFAULT_PORT = parseInt(process.env.PORT) || 4001;
 let PORT = DEFAULT_PORT;
 
 const startServer = async () => {
   try {
     await connectDB();
+    await initSocket(httpServer);
     const listen = async () => {
-      const server = app.listen(PORT);
+      const server = httpServer.listen(PORT);
       server.on('listening', () => {
         console.log(`🚀 Server running on http://localhost:${PORT}`);
         console.log(`📁 Image uploads served at http://localhost:${PORT}/uploads`);
@@ -58,9 +64,13 @@ app.use(express.static(path.join(__dirname, 'dist')));
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
+
+app.use(cors({
   origin: [
     process.env.CLIENT_ORIGIN || 'http://localhost:5173',
     'http://127.0.0.1:5173',
+    'http://localhost:5175',
+    'http://127.0.0.1:5175',
   ],
 }));
 app.use(express.json());
@@ -71,6 +81,8 @@ app.use('/api/complaints', complaintRoutes);
 app.use('/api/admin/workers', workerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/superadmin', superAdminRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // CRON JOB: Auto Priority Escalation
 cron.schedule('0 0 * * *', async () => {

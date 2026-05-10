@@ -24,9 +24,10 @@ router.get('/', verifyToken, requireRole('Admin', 'SuperAdmin', 'Super Admin'), 
 router.post('/', verifyToken, requireRole('Admin', 'SuperAdmin', 'Super Admin'), async (req, res) => {
   try {
     const { workers } = getCollections();
-    const { name, email, phone, password } = req.body;
+    const { name, email, phone, password, specializations, maxWorkload, isActive } = req.body;
+    const normalizedEmail = email?.trim().toLowerCase();
 
-    if (!name || !email || !phone || !password) {
+    if (!name || !normalizedEmail || !phone || !password) {
       return res.status(400).json({ message: 'Name, email, phone, and password are required.' });
     }
 
@@ -34,7 +35,7 @@ router.post('/', verifyToken, requireRole('Admin', 'SuperAdmin', 'Super Admin'),
       return res.status(400).json({ message: 'Password must be at least 6 characters.' });
     }
 
-    const existing = await workers.findOne({ email });
+    const existing = await workers.findOne({ email: normalizedEmail });
     if (existing) {
       return res.status(409).json({ message: 'Worker email already exists.' });
     }
@@ -43,16 +44,70 @@ router.post('/', verifyToken, requireRole('Admin', 'SuperAdmin', 'Super Admin'),
     const now = new Date();
     const worker = {
       name,
-      email,
+      email: normalizedEmail,
       phone,
-      role: 'worker',
+      role: 'Worker',
       password: hashedPassword,
+      specializations: Array.isArray(specializations) ? specializations : [],
+      maxWorkload: parseInt(maxWorkload) || 5,
+      isActive: typeof isActive === 'boolean' ? isActive : true,
+      rating: 0,
+      totalCompleted: 0,
       created_at: now,
       createdAt: now,
     };
 
     const result = await workers.insertOne(worker);
     return res.status(201).json(workerToJSON({ ...worker, _id: result.insertedId }));
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+// Update a worker
+router.patch('/:id', verifyToken, requireRole('Admin', 'SuperAdmin', 'Super Admin'), async (req, res) => {
+  try {
+    const { workers } = getCollections();
+    const { id } = req.params;
+    const updates = {};
+    const { name, phone, specializations, maxWorkload, isActive } = req.body;
+
+    if (name !== undefined) updates.name = name.trim();
+    if (phone !== undefined) updates.phone = phone.trim();
+    if (specializations !== undefined) updates.specializations = Array.isArray(specializations) ? specializations : [];
+    if (maxWorkload !== undefined) updates.maxWorkload = parseInt(maxWorkload) || 5;
+    if (isActive !== undefined) updates.isActive = !!isActive;
+    updates.updatedAt = new Date();
+
+    const result = await workers.findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      { $set: updates },
+      { returnDocument: 'after' }
+    );
+
+    if (!result.value) return res.status(404).json({ message: 'Worker not found.' });
+    return res.json(workerToJSON(result.value));
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+// Toggle worker active status
+router.patch('/:id/toggle', verifyToken, requireRole('Admin', 'SuperAdmin', 'Super Admin'), async (req, res) => {
+  try {
+    const { workers } = getCollections();
+    const { id } = req.params;
+
+    const worker = await workers.findOne({ _id: new ObjectId(id) });
+    if (!worker) return res.status(404).json({ message: 'Worker not found.' });
+
+    const result = await workers.findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      { $set: { isActive: !worker.isActive, updatedAt: new Date() } },
+      { returnDocument: 'after' }
+    );
+
+    return res.json(workerToJSON(result.value));
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -104,6 +159,8 @@ router.delete('/:id', verifyToken, requireRole('Admin', 'SuperAdmin', 'Super Adm
       {
         $set: {
           assigned_worker_id: null,
+          assignedWorkerId: null,
+          assignedWorkerName: null,
           assignedTo: 'Not assigned',
           workerName: null,
           workerId: null,
@@ -126,7 +183,7 @@ router.patch('/complaints/:id/complete', verifyToken, requireRole('Worker'), upl
   const { remarks } = req.body;
   
   try {
-    const { complaints } = getCollections();
+    const { complaints, workers } = getCollections();
     const proofImages = req.files ? req.files.map(file => `/uploads/${file.filename}`) : [];
     
     if (proofImages.length === 0) {
@@ -156,6 +213,16 @@ router.patch('/complaints/:id/complete', verifyToken, requireRole('Worker'), upl
     if (!result.value) {
       return res.status(404).json({ message: 'Complaint not found.' });
     }
+
+    // Increment worker totalCompleted
+    const workerName = result.value.workerName || result.value.assignedTo;
+    if (workerName && workerName !== 'Not assigned') {
+      await workers.updateOne(
+        { name: workerName },
+        { $inc: { totalCompleted: 1 } }
+      );
+    }
+
     return res.json(toJSON(result.value));
   } catch (error) {
     return res.status(500).json({ message: error.message });

@@ -13,6 +13,7 @@ export const generateToken = (user) => {
     { 
       id: user._id?.toString?.() || user._id,
       email: user.email,
+      grnNumber: user.grnNumber,
       role: user.role,
       name: user.name 
     },

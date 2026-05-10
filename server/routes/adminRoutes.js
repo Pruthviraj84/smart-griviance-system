@@ -55,4 +55,22 @@ router.patch('/complaints/:id/verify', verifyToken, requireRole('Admin', 'SuperA
   }
 });
 
+router.get('/delayed', verifyToken, requireRole('Admin', 'SuperAdmin', 'Super Admin'), async (req, res) => {
+  try {
+    const { complaints } = getCollections();
+    const fourDaysAgo = new Date();
+    fourDaysAgo.setDate(fourDaysAgo.getDate() - 4);
+
+    const delayedComplaints = await complaints.find({
+      status: { $in: ['Pending', 'Assigned'] },
+      $or: [{ started_at: { $exists: false } }, { started_at: null }],
+      createdAt: { $lte: fourDaysAgo }
+    }).sort({ createdAt: 1 }).toArray();
+
+    return res.json(delayedComplaints.map(toJSON));
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
 export default router;

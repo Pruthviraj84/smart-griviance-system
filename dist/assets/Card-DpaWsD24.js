@@ -1,0 +1,1 @@
+import{r as t,j as n}from"./index-ClzcNA3r.js";const c=t.forwardRef(function({children:r,className:a="",hover:o=!1,padding:e="p-6",...s},d){return n.jsx("div",{ref:d,className:`rounded-2xl border border-gray-100 bg-white shadow-card transition-shadow ${o?"hover:shadow-elevated":""} ${e} ${a}`,...s,children:r})});export{c as C};

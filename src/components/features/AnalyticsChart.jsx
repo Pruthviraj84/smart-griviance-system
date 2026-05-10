@@ -26,7 +26,7 @@ export function AnalyticsChart({ complaints }) {
     // Also consider delayed
     if (status !== 'Solved' && status !== 'In Progress') {
       const reference = new Date(item.created_at || item.createdAt || Date.now());
-      if (Date.now() - reference.getTime() >= 4 * 86400000) {
+      if (Date.now() - reference.getTime() >= 2 * 86400000) {
         status = 'Delayed';
       }
     }

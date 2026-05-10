@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { getAuthHeaders, API_BASE } from '../utils/api';
+import { API_BASE } from '../utils/api';
+import { getAuthHeaders } from '../utils/auth';
 
 export const useApi = () => {
   const [loading, setLoading] = useState(false);
