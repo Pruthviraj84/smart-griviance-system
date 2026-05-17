@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Plus, Trash2, Edit2, Power } from 'lucide-react';
 import { API_BASE, API_ENDPOINTS } from '../../utils/api';
-import { getAuthHeaders } from '../../utils/auth';
+import { getAuthHeaders, getToken } from '../../utils/auth';
 import { CATEGORIES } from '../../utils/constants';
+import { useToast } from '../../contexts/ToastContext';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
@@ -12,6 +13,7 @@ import Skeleton from '../../components/common/Skeleton';
 import Badge from '../../components/common/Badge';
 
 export default function AdminWorkers() {
+  const { success, error: showError } = useToast();
   const [workers, setWorkers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -25,9 +27,14 @@ export default function AdminWorkers() {
       const res = await fetch(`${API_BASE}${API_ENDPOINTS.GET_WORKERS}`, {
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       });
-      if (res.ok) setWorkers(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setWorkers(data);
+      } else {
+        console.error('Failed to fetch workers');
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Fetch workers error:', err);
     } finally {
       setIsLoading(false);
     }
@@ -39,6 +46,34 @@ export default function AdminWorkers() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate form
+    if (!form.name || !form.phone) {
+      showError('Name and phone are required');
+      return;
+    }
+    
+    if (!editingWorker && (!form.email || !form.password)) {
+      showError('Email and password are required for new workers');
+      return;
+    }
+    
+    if (!editingWorker && form.password.length < 6) {
+      showError('Password must be at least 6 characters');
+      return;
+    }
+    
+    // Check if user is authenticated
+    if (!getToken()) {
+      showError('Your session has expired. Please log in again.');
+      return;
+    }
+    
+    // Prevent multiple submissions
+    if (isSubmitting) {
+      return;
+    }
+    
     setIsSubmitting(true);
     try {
       const url = editingWorker
@@ -49,19 +84,42 @@ export default function AdminWorkers() {
         ? { name: form.name, phone: form.phone, specializations: form.specializations, maxWorkload: form.maxWorkload, isActive: form.isActive }
         : form;
 
+      const headers = getAuthHeaders();
       const res = await fetch(url, {
         method,
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (res.ok) {
-        setShowModal(false);
-        setEditingWorker(null);
-        setForm({ name: '', email: '', phone: '', password: '', specializations: [], maxWorkload: 5, isActive: true });
-        fetchWorkers();
+      
+      if (!res.ok) {
+        let errorMessage = `Failed to ${editingWorker ? 'update' : 'create'} worker`;
+        try {
+          const data = await res.json();
+          if (res.status === 401) {
+            errorMessage = 'Your session has expired. Please log in again.';
+          } else {
+            errorMessage = data.message || errorMessage;
+          }
+        } catch {
+          if (res.status === 401) {
+            errorMessage = 'Your session has expired. Please log in again.';
+          } else {
+            errorMessage = `HTTP ${res.status}: ${res.statusText}`;
+          }
+        }
+        showError(errorMessage);
+        return;
       }
+      
+      const data = await res.json();
+      success(editingWorker ? 'Worker updated successfully' : 'Worker created successfully');
+      setShowModal(false);
+      setEditingWorker(null);
+      setForm({ name: '', email: '', phone: '', password: '', specializations: [], maxWorkload: 5, isActive: true });
+      fetchWorkers();
     } catch (err) {
-      console.error(err);
+      console.error('Worker submission error:', err);
+      showError(err.message || 'Failed to process request');
     } finally {
       setIsSubmitting(false);
     }
@@ -70,25 +128,39 @@ export default function AdminWorkers() {
   const handleDelete = async (worker) => {
     if (!window.confirm(`Delete ${worker.name}?`)) return;
     try {
-      await fetch(`${API_BASE}${API_ENDPOINTS.DELETE_WORKER(worker.id || worker._id)}`, {
+      const res = await fetch(`${API_BASE}${API_ENDPOINTS.DELETE_WORKER(worker.id || worker._id)}`, {
         method: 'DELETE',
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       });
-      fetchWorkers();
+      if (res.ok) {
+        success('Worker deleted successfully');
+        fetchWorkers();
+      } else {
+        const data = await res.json();
+        showError(data.message || 'Failed to delete worker');
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Delete error:', err);
+      showError('Failed to delete worker');
     }
   };
 
   const handleToggle = async (worker) => {
     try {
-      await fetch(`${API_BASE}${API_ENDPOINTS.TOGGLE_WORKER(worker.id || worker._id)}`, {
+      const res = await fetch(`${API_BASE}${API_ENDPOINTS.TOGGLE_WORKER(worker.id || worker._id)}`, {
         method: 'PATCH',
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       });
-      fetchWorkers();
+      if (res.ok) {
+        success(worker.isActive ? 'Worker deactivated' : 'Worker activated');
+        fetchWorkers();
+      } else {
+        const data = await res.json();
+        showError(data.message || 'Failed to update worker status');
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Toggle error:', err);
+      showError('Failed to update worker status');
     }
   };
 

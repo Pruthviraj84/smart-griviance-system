@@ -15,11 +15,13 @@ const StudentProfile = lazy(() => import('./pages/student/StudentProfile'));
 
 const WorkerDashboard = lazy(() => import('./pages/worker/WorkerDashboard'));
 const WorkerTasks = lazy(() => import('./pages/worker/WorkerTasks'));
+const WorkerProfile = lazy(() => import('./pages/worker/WorkerProfile'));
 
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const AdminComplaints = lazy(() => import('./pages/admin/AdminComplaints'));
 const AdminWorkers = lazy(() => import('./pages/admin/AdminWorkers'));
 const AdminReports = lazy(() => import('./pages/admin/AdminReports'));
+const AdminVerification = lazy(() => import('./pages/admin/AdminVerification'));
 
 const SuperAdminDashboard = lazy(() => import('./pages/superadmin/SuperAdminDashboard'));
 const SuperAdminAnalytics = lazy(() => import('./pages/superadmin/SuperAdminAnalytics'));
@@ -194,6 +196,16 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/worker/profile"
+        element={
+          <ProtectedRoute allowedRoles={['Worker']}>
+            <DashboardRoute>
+              <WorkerProfile />
+            </DashboardRoute>
+          </ProtectedRoute>
+        }
+      />
 
       {/* Admin routes */}
       <Route
@@ -232,6 +244,16 @@ export default function App() {
           <ProtectedRoute allowedRoles={['Admin']}>
             <DashboardRoute>
               <AdminReports />
+            </DashboardRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/verification"
+        element={
+          <ProtectedRoute allowedRoles={['Admin']}>
+            <DashboardRoute>
+              <AdminVerification />
             </DashboardRoute>
           </ProtectedRoute>
         }

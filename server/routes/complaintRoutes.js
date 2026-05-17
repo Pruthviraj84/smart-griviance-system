@@ -39,6 +39,11 @@ const hasAssignedWorker = (complaint = {}) =>
     (complaint.assignedTo && complaint.assignedTo !== 'Not assigned')
   );
 
+const assignedWorkerNotificationTarget = (complaint = {}) => {
+  const id = complaint.assignedWorkerId || complaint.assigned_worker_id || complaint.workerId;
+  return id ? { role: 'Worker', id } : {};
+};
+
 const refreshWorkerAvailability = async (workerId) => {
   if (!workerId) return;
   const { workers } = getCollections();
@@ -191,7 +196,7 @@ const updateComplaintStatus = async (req, res) => {
         createdAt: new Date(),
       });
 
-      emitNotification({ role: 'Worker' }, {
+      emitNotification(assignedWorkerNotificationTarget(complaint), {
         type: 'complaint_verified',
         message: 'Your work has been verified',
         complaintId: id,
@@ -211,7 +216,7 @@ const updateComplaintStatus = async (req, res) => {
         createdAt: new Date(),
       });
 
-      emitNotification({ role: 'Worker' }, {
+      emitNotification(assignedWorkerNotificationTarget(complaint), {
         type: 'complaint_resolved',
         message: 'Your work has been verified',
         complaintId: id,
@@ -491,7 +496,8 @@ router.patch('/verify/:id', verifyToken, requireRole('Admin', 'SuperAdmin', 'Sup
       return res.status(400).json({ message: 'Only completed complaints can be verified.' });
     }
 
-    if (!complaint.completionImage) {
+    const completionProofImage = complaint.completionImage || complaint.after_image?.[0] || complaint.workerProofImages?.[0];
+    if (!completionProofImage) {
       return res.status(400).json({ message: 'No completion image found to verify.' });
     }
 
@@ -500,6 +506,7 @@ router.patch('/verify/:id', verifyToken, requireRole('Admin', 'SuperAdmin', 'Sup
       {
         $set: {
           status: 'Verified',
+          completionImage: completionProofImage,
           verifiedAt: new Date(),
           verifiedBy: adminId,
           verifiedByName: adminName,
@@ -510,7 +517,7 @@ router.patch('/verify/:id', verifyToken, requireRole('Admin', 'SuperAdmin', 'Sup
       { returnDocument: 'after' }
     );
 
-    emitToComplaintRoom(id, {
+    emitToComplaintRoom(id, 'complaint_updated', {
       type: 'work_verified',
       message: 'Admin verified the work completion.',
       complaint: toJSON(result.value),
@@ -523,7 +530,7 @@ router.patch('/verify/:id', verifyToken, requireRole('Admin', 'SuperAdmin', 'Sup
       createdAt: new Date(),
     });
 
-    emitNotification({ role: 'Worker' }, {
+    emitNotification(assignedWorkerNotificationTarget(complaint), {
       type: 'complaint_verified',
       message: 'Work verified by admin',
       complaintId: id,
@@ -888,79 +895,6 @@ router.post('/:id/auto-assign', verifyToken, requireRole('Admin', 'SuperAdmin', 
   }
 });
 
-// Get delayed complaints (pending or in-progress for more than 4 days)
-router.get('/delayed/list', verifyToken, requireRole('Admin', 'SuperAdmin', 'Super Admin'), async (req, res) => {
-  try {
-    const { complaints } = getCollections();
-    const fourDaysAgo = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000);
-    
-    const delayedComplaints = await complaints.find({
-      status: { $in: ['Assigned', 'In Progress'] },
-      createdAt: { $lt: fourDaysAgo }
-    }).sort({ createdAt: 1 }).toArray();
-    
-    return res.json({
-      count: delayedComplaints.length,
-      complaints: delayedComplaints.map(c => ({
-        _id: c._id,
-        title: c.title,
-        status: c.status,
-        assignedTo: c.assignedTo,
-        category: c.category,
-        priority: c.priority,
-        createdAt: c.createdAt,
-        daysOpen: Math.floor((Date.now() - new Date(c.createdAt)) / (24 * 60 * 60 * 1000)),
-        grnNumber: c.grnNumber
-      }))
-    });
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
-});
-
-// Get worker workload info
-router.get('/workers/workload', verifyToken, requireRole('Admin', 'SuperAdmin', 'Super Admin'), async (req, res) => {
-  try {
-    const { workers, complaints } = getCollections();
-    
-    const workerList = await workers.find({}).toArray();
-    const complaintList = await complaints.find({}).toArray();
-    
-    const workerWorkload = await Promise.all(
-      workerList.map(async (worker) => {
-        const activeCount = await countActiveTasksForWorker(worker._id);
-        const completedToday = complaintList.filter(c => 
-          c.assigned_worker_id && 
-          c.assigned_worker_id.toString() === worker._id.toString() &&
-          c.status === 'Completed' &&
-          new Date(c.lastUpdatedAt).toDateString() === new Date().toDateString()
-        ).length;
-        
-        return {
-          _id: worker._id,
-          name: worker.name,
-          specialization: worker.specialization || worker.specializations?.[0] || 'General',
-          specializations: worker.specializations || [],
-          activeTaskCount: activeCount,
-          activeComplaintsCount: activeCount,
-          maxWorkload: worker.maxWorkload || 5,
-          totalCompleted: worker.totalCompleted || 0,
-          rating: worker.rating || 0,
-          isActive: worker.isActive,
-          workloadPercentage: Math.round((activeCount / (worker.maxWorkload || 5)) * 100),
-          completedToday,
-          status: worker.isActive ? (activeCount >= (worker.maxWorkload || 5) ? 'Busy' : 'Available') : 'Inactive',
-          availabilityStatus: worker.isActive ? (activeCount >= (worker.maxWorkload || 5) ? 'Busy' : 'Available') : 'Inactive',
-        };
-      })
-    );
-    
-    return res.json(workerWorkload);
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
-});
-
 // Reassign worker with history tracking
 router.patch('/:id/reassign', verifyToken, requireRole('Admin', 'SuperAdmin', 'Super Admin'), async (req, res) => {
   try {
@@ -1115,7 +1049,14 @@ router.patch('/:id/start-work', verifyToken, requireRole('Worker'), async (req, 
     if (!complaint) return res.status(404).json({ message: 'Complaint not found.' });
 
     // Verify worker is assigned to this complaint
-    if (complaint.assignedTo !== workerName && complaint.workerName !== workerName) {
+    const workerId = req.user.id || req.user._id;
+    if (
+      complaint.assignedTo !== workerName &&
+      complaint.workerName !== workerName &&
+      String(complaint.assignedWorkerId || '') !== String(workerId || '') &&
+      String(complaint.assigned_worker_id || '') !== String(workerId || '') &&
+      String(complaint.workerId || '') !== String(workerId || '')
+    ) {
       return res.status(403).json({ message: 'You are not assigned to this complaint.' });
     }
 
@@ -1166,7 +1107,14 @@ router.patch('/:id/complete-work', verifyToken, requireRole('Worker'), upload.si
     if (!complaint) return res.status(404).json({ message: 'Complaint not found.' });
 
     // Verify worker is assigned
-    if (complaint.assignedTo !== workerName && complaint.workerName !== workerName) {
+    const workerId = req.user.id || req.user._id;
+    if (
+      complaint.assignedTo !== workerName &&
+      complaint.workerName !== workerName &&
+      String(complaint.assignedWorkerId || '') !== String(workerId || '') &&
+      String(complaint.assigned_worker_id || '') !== String(workerId || '') &&
+      String(complaint.workerId || '') !== String(workerId || '')
+    ) {
       return res.status(403).json({ message: 'You are not assigned to this complaint.' });
     }
 
@@ -1185,6 +1133,8 @@ router.patch('/:id/complete-work', verifyToken, requireRole('Worker'), upload.si
         $set: { 
           status: 'Completed',
           completionImage,
+          after_image: [completionImage],
+          workerProofImages: [completionImage],
           remarks: remarks || '',
           workerRemarks: remarks || '',
           workerSubmittedProof: true,
@@ -1197,6 +1147,12 @@ router.patch('/:id/complete-work', verifyToken, requireRole('Worker'), upload.si
     );
 
     emitNotification({ role: 'Admin' }, {
+      type: 'work_completed',
+      message: `${complaint.title} marked as completed by worker. Awaiting verification.`,
+      complaintId: id,
+      createdAt: new Date(),
+    });
+    emitNotification({ role: 'SuperAdmin' }, {
       type: 'work_completed',
       message: `${complaint.title} marked as completed by worker. Awaiting verification.`,
       complaintId: id,
@@ -1232,7 +1188,8 @@ router.patch('/:id/verify', verifyToken, requireRole('Admin', 'SuperAdmin', 'Sup
       });
     }
 
-    if (!complaint.completionImage) {
+    const completionProofImage = complaint.completionImage || complaint.after_image?.[0] || complaint.workerProofImages?.[0];
+    if (!completionProofImage) {
       return res.status(400).json({ message: 'No completion image found to verify.' });
     }
 
@@ -1241,6 +1198,7 @@ router.patch('/:id/verify', verifyToken, requireRole('Admin', 'SuperAdmin', 'Sup
       { 
         $set: { 
           status: 'Verified',
+          completionImage: completionProofImage,
           verifiedBy: adminName || req.user.name,
           verifiedAt: new Date(),
           verificationStatus: 'Verified',
@@ -1303,7 +1261,7 @@ router.patch('/:id/reject-verification', verifyToken, requireRole('Admin', 'Supe
       createdAt: new Date(),
     });
 
-    emitNotification({ role: 'Worker' }, {
+    emitNotification(assignedWorkerNotificationTarget(complaint), {
       type: 'verification_rejected',
       message: `Your work on "${complaint.title}" was rejected. Reason: ${reason || 'See details'}`,
       complaintId: id,

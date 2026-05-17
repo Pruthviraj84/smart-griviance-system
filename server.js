@@ -25,7 +25,7 @@ const __dirname = path.dirname(__filename);
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 const app = express();
 const httpServer = createServer(app);
-const DEFAULT_PORT = parseInt(process.env.PORT) || 4001;
+const DEFAULT_PORT = parseInt(process.env.PORT) || 4000;
 let PORT = DEFAULT_PORT;
 
 const startServer = async () => {
@@ -35,16 +35,14 @@ const startServer = async () => {
     const listen = async () => {
       const server = httpServer.listen(PORT);
       server.on('listening', () => {
-        console.log(`🚀 Server running on http://localhost:${PORT}`);
-        console.log(`📁 Image uploads served at http://localhost:${PORT}/uploads`);
-        console.log(`⏰ Auto-escalation cron job scheduled (daily at midnight)`);
+        console.log(`Server running on http://localhost:${PORT}`);
+        console.log(`Image uploads served at http://localhost:${PORT}/uploads`);
+        console.log('Auto-escalation cron job scheduled (daily at midnight)');
       });
       server.on('error', async (err) => {
         if (err.code === 'EADDRINUSE') {
-          console.warn(`Port ${PORT} in use, trying ${PORT + 1}`);
-          PORT += 1;
-          server.close();
-          await listen();
+          console.error(`Port ${PORT} is already in use. Please stop the process using port ${PORT} or set PORT to a free port in your .env file.`);
+          process.exit(1);
         } else {
           console.error('Server error:', err);
           process.exit(1);
@@ -59,11 +57,6 @@ const startServer = async () => {
 };
 
 app.use('/uploads', express.static(UPLOAD_DIR));
-
-app.use(express.static(path.join(__dirname, 'dist')));
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-});
 
 app.use(cors({
   origin: [
@@ -83,6 +76,11 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/superadmin', superAdminRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/notifications', notificationRoutes);
+
+app.use(express.static(path.join(__dirname, 'dist')));
+app.get(/^\/(?!api\/).*/, (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
 
 // CRON JOB: Auto Priority Escalation
 cron.schedule('0 0 * * *', async () => {

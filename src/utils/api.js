@@ -10,6 +10,7 @@ export const API_ENDPOINTS = {
   STUDENT_LOGIN: '/api/students/login',
   STUDENT_ME: '/api/students/me',
   WORKER_LOGIN: '/api/worker/login',
+  WORKER_ME: '/api/worker/me',
   ADMIN_LOGIN: '/api/admin/login',
   SUPERADMIN_LOGIN: '/api/superadmin/login',
   

@@ -5,30 +5,30 @@ import { verifyToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
+const notificationTargetsFor = (user = {}) => {
+  const targets = [
+    user.id || user._id ? { userId: (user.id || user._id).toString() } : null,
+    user.grnNumber ? { grnNumber: user.grnNumber } : null,
+    user.role ? { role: user.role } : null,
+    { role: 'All' },
+  ];
+
+  return targets.filter(Boolean);
+};
+
 router.get('/', verifyToken, async (req, res) => {
   try {
     const { notifications } = getCollections();
-    const userId = req.user.id || req.user._id;
-    const role = req.user.role;
+    const targets = notificationTargetsFor(req.user);
 
     const list = await notifications
-      .find({
-        $or: [
-          { userId: userId?.toString() },
-          { role },
-          { role: 'All' },
-        ],
-      })
+      .find({ $or: targets })
       .sort({ createdAt: -1 })
       .limit(50)
       .toArray();
 
     const unreadCount = await notifications.countDocuments({
-      $or: [
-        { userId: userId?.toString() },
-        { role },
-        { role: 'All' },
-      ],
+      $or: targets,
       read: false,
     });
 
@@ -54,16 +54,11 @@ router.patch('/:id/read', verifyToken, async (req, res) => {
 router.patch('/read-all', verifyToken, async (req, res) => {
   try {
     const { notifications } = getCollections();
-    const userId = req.user.id || req.user._id;
-    const role = req.user.role;
+    const targets = notificationTargetsFor(req.user);
 
     await notifications.updateMany(
       {
-        $or: [
-          { userId: userId?.toString() },
-          { role },
-          { role: 'All' },
-        ],
+        $or: targets,
         read: false,
       },
       { $set: { read: true } }

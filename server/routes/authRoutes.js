@@ -1,4 +1,5 @@
 import express from 'express';
+import { ObjectId } from 'mongodb';
 import { getCollections } from '../config/db.js';
 import { hashPassword, verifyPassword, verifyPasswordLegacy, generateToken } from '../utils/authUtils.js';
 import { requireRole, verifyToken } from '../middleware/auth.js';
@@ -316,8 +317,11 @@ router.post('/worker/login', async (req, res) => {
     
     if (!worker) {
       const defaultAccounts = [
-        { name: 'Vikram', email: 'vikram@hostel.com', phone: '9876543201' },
-        { name: 'Rajesh', email: 'rajesh@hostel.com', phone: '9876543202' },
+        { name: 'Vikram', email: 'vikram@hostel.com', phone: '9876543201', specializations: ['Electric', 'Internet'] },
+        { name: 'Rajesh', email: 'rajesh@hostel.com', phone: '9876543202', specializations: ['Plumbing', 'Cleaning'] },
+        { name: 'Suresh', email: 'suresh@hostel.com', phone: '9876543203', specializations: ['Electric', 'Plumbing'] },
+        { name: 'Amit', email: 'amit@hostel.com', phone: '9876543204', specializations: ['Cleaning', 'Internet'] },
+        { name: 'Nitin', email: 'nitin@hostel.com', phone: '9876543205', specializations: ['Plumbing', 'Cleaning', 'Electric'] },
       ];
       const fallback = defaultAccounts.find((account) => account.email === normalizedEmail && password === 'Worker@123');
       if (fallback) {
@@ -328,6 +332,12 @@ router.post('/worker/login', async (req, res) => {
           phone: fallback.phone,
           role: 'Worker',
           password: hashedPassword,
+          specializations: fallback.specializations,
+          specialization: fallback.specializations[0] || 'General',
+          maxWorkload: 5,
+          isActive: true,
+          rating: 0,
+          totalCompleted: 0,
           createdAt: new Date(),
         });
         worker = { ...fallback, _id: result.insertedId, password: hashedPassword, role: 'Worker' };
@@ -363,6 +373,66 @@ router.post('/worker/login', async (req, res) => {
         name: worker.name, 
         role: 'Worker' 
       }
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+router.get('/worker/me', verifyToken, requireRole('Worker'), async (req, res) => {
+  try {
+    const { workers } = getCollections();
+    const worker = await workers.findOne({ _id: new ObjectId(req.user.id || req.user._id) });
+
+    if (!worker) {
+      return res.status(404).json({ message: 'Worker profile not found.' });
+    }
+
+    return res.json({
+      worker: {
+        id: worker._id.toString(),
+        _id: worker._id.toString(),
+        name: worker.name,
+        email: worker.email,
+        phone: worker.phone || '',
+        role: 'Worker',
+        specialization: worker.specialization || worker.specializations?.[0] || 'General',
+        specializations: worker.specializations || [],
+        maxWorkload: worker.maxWorkload || 5,
+        isActive: worker.isActive !== false,
+        availabilityStatus: worker.availabilityStatus || 'Available',
+        totalCompleted: worker.totalCompleted || 0,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+router.get('/admin/me', verifyToken, requireRole('Admin'), async (req, res) => {
+  try {
+    return res.json({
+      admin: {
+        id: req.user._id || req.user.id || 'admin-id',
+        email: req.user.email || 'admin@hostel.com',
+        name: req.user.name || 'Hostel Admin',
+        role: 'Admin',
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+router.get('/superadmin/me', verifyToken, requireRole('SuperAdmin', 'Super Admin'), async (req, res) => {
+  try {
+    return res.json({
+      superadmin: {
+        id: req.user._id || req.user.id || 'superadmin-id',
+        email: req.user.email || 'superadmin@hostel.com',
+        name: req.user.name || 'Super Admin',
+        role: 'SuperAdmin',
+      },
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });

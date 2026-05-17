@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { API_BASE, API_ENDPOINTS } from '../../utils/api';
@@ -13,7 +13,7 @@ const tabs = ['All', 'Assigned', 'In Progress', 'Completed', 'Verified'];
 
 export default function WorkerTasks() {
   const { user } = useAuth();
-  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [complaints, setComplaints] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('All');
@@ -47,7 +47,7 @@ export default function WorkerTasks() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.name]);
+  }, [user?.id, user?._id, user?.name]);
 
   useEffect(() => {
     fetchComplaints();
@@ -67,7 +67,7 @@ export default function WorkerTasks() {
         setComplaints(prev => prev.map(c => c._id === updated._id ? updated : c));
         setStatusMessage({ 
           type: 'success', 
-          message: '✓ Work started successfully. Status changed to "In Progress"' 
+          message: 'Work started successfully. Status changed to "In Progress"' 
         });
         setTimeout(() => setStatusMessage({ type: '', message: '' }), 3000);
       } else {
@@ -102,7 +102,7 @@ export default function WorkerTasks() {
         setComplaints(prev => prev.map(c => c._id === updated._id ? updated : c));
         setStatusMessage({ 
           type: 'success', 
-          message: '✓ Work completed and proof uploaded. Awaiting admin verification.' 
+          message: 'Work completed and proof uploaded. Awaiting admin verification.' 
         });
         setShowCompleteModal(false);
         setSelectedComplaint(null);
@@ -120,6 +120,14 @@ export default function WorkerTasks() {
   };
 
   const filtered = complaints.filter((c) => {
+    const search = searchParams.get('search')?.trim().toLowerCase();
+    const matchesSearch = !search ||
+      c.title?.toLowerCase().includes(search) ||
+      c.description?.toLowerCase().includes(search) ||
+      c.category?.toLowerCase().includes(search) ||
+      c.studentName?.toLowerCase().includes(search);
+
+    if (!matchesSearch) return false;
     if (activeTab === 'All') return true;
     if (activeTab === 'Completed') return ['Completed', 'Verified', 'Resolved'].includes(c.status);
     return c.status === activeTab;

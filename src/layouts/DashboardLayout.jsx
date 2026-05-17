@@ -9,6 +9,7 @@ import {
   FileText,
   BarChart3,
   Bell,
+  CheckCircle2,
   Search,
   Menu,
   X,
@@ -29,6 +30,7 @@ const iconMap = {
   Users,
   FileText,
   BarChart3,
+  CheckCircle2,
 };
 
 export default function DashboardLayout({ children }) {
@@ -62,7 +64,11 @@ export default function DashboardLayout({ children }) {
   const handleSearch = (e) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
-    const path = location.pathname.startsWith('/admin') ? '/admin/complaints' : '/student/complaints';
+    const path = role === 'Admin' || role === 'SuperAdmin'
+      ? `/${role.toLowerCase()}/complaints`
+      : role === 'Worker'
+        ? '/worker/tasks'
+        : '/student/complaints';
     navigate(`${path}?search=${encodeURIComponent(searchQuery.trim())}`);
     setSearchQuery('');
   };
@@ -237,7 +243,13 @@ export default function DashboardLayout({ children }) {
                     <div className="p-1">
                       <button
                         onClick={() => {
-                          const path = role === 'Student' ? '/student/profile' : '/';
+                          const path = role === 'Student'
+                            ? '/student/profile'
+                            : role === 'Worker'
+                              ? '/worker/profile'
+                              : role === 'Admin'
+                                ? '/admin'
+                                : '/superadmin';
                           navigate(path);
                           setProfileOpen(false);
                         }}

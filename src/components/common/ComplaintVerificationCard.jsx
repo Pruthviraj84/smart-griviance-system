@@ -8,6 +8,8 @@ export default function ComplaintVerificationCard({ complaint, onVerify, onRejec
   const isAdmin = ['Admin', 'SuperAdmin', 'Super Admin'].includes(userRole);
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+  const completionImage = complaint?.completionImage || complaint?.workerProofImages?.[0] || complaint?.after_image?.[0];
+  const beforeImage = complaint?.images?.[0] || complaint?.before_image?.[0];
 
   if (!isAdmin || complaint?.status !== 'Completed') {
     return null;
@@ -43,7 +45,7 @@ export default function ComplaintVerificationCard({ complaint, onVerify, onRejec
         
         {complaint?.complaintCount > 1 && (
           <div className="mb-2 px-2 py-1 bg-orange-50 text-orange-700 rounded text-xs font-medium border border-orange-200">
-            ⚠️ {complaint.complaintCount} students reported this issue
+            Warning: {complaint.complaintCount} students reported this issue
           </div>
         )}
 
@@ -56,15 +58,15 @@ export default function ComplaintVerificationCard({ complaint, onVerify, onRejec
       </div>
 
       {/* Completion Image Section */}
-      {complaint?.completionImage && (
+      {completionImage && (
         <div className="mb-4 pb-4 border-b border-slate-200">
           <p className="text-sm font-semibold text-slate-900 mb-3">Completion Proof Image</p>
           <div className="space-y-3">
-            {complaint?.images?.length > 0 && (
+            {beforeImage && (
               <div>
                 <p className="text-xs font-medium text-slate-600 mb-2">Before:</p>
                 <img
-                  src={complaint.images[0]}
+                  src={beforeImage}
                   alt="Before"
                   className="w-full h-auto max-h-64 object-cover rounded-lg border border-slate-200"
                 />
@@ -73,7 +75,7 @@ export default function ComplaintVerificationCard({ complaint, onVerify, onRejec
             <div>
               <p className="text-xs font-medium text-slate-600 mb-2">After (Proof):</p>
               <img
-                src={complaint.completionImage}
+                src={completionImage}
                 alt="After - Completion Proof"
                 className="w-full h-auto max-h-64 object-cover rounded-lg border-2 border-green-300 shadow-sm"
               />
@@ -87,13 +89,13 @@ export default function ComplaintVerificationCard({ complaint, onVerify, onRejec
         <p className="text-xs font-medium text-slate-600 mb-2">Timeline</p>
         <div className="space-y-1 text-xs text-slate-600">
           {complaint?.createdAt && (
-            <p>📝 Created: {new Date(complaint.createdAt).toLocaleString()}</p>
+            <p>Created: {new Date(complaint.createdAt).toLocaleString()}</p>
           )}
           {complaint?.workStartedAt && (
-            <p>▶️ Work Started: {new Date(complaint.workStartedAt).toLocaleString()}</p>
+            <p>Work Started: {new Date(complaint.workStartedAt).toLocaleString()}</p>
           )}
           {complaint?.workCompletedAt && (
-            <p>✅ Completed: {new Date(complaint.workCompletedAt).toLocaleString()}</p>
+            <p>Completed: {new Date(complaint.workCompletedAt).toLocaleString()}</p>
           )}
         </div>
       </div>

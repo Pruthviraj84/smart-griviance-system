@@ -55,6 +55,7 @@ export const ROLE_NAV_ITEMS = {
   Admin: [
     { label: 'Dashboard', path: '/admin', icon: 'LayoutDashboard' },
     { label: 'Complaints', path: '/admin/complaints', icon: 'ClipboardList' },
+    { label: 'Verification', path: '/admin/verification', icon: 'CheckCircle2' },
     { label: 'Workers', path: '/admin/workers', icon: 'Users' },
     { label: 'Reports', path: '/admin/reports', icon: 'FileText' },
   ],

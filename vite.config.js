@@ -14,7 +14,7 @@ export default defineConfig({
     strictPort: false, // auto-increment if port is occupied
     proxy: {
       '/api': {
-        target: 'http://localhost:4001',
+        target: process.env.VITE_API_BASE || 'http://localhost:4000',
         changeOrigin: true,
       },
     },

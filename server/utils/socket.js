@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
+import { getCollections } from '../config/db.js';
 
 dotenv.config();
 
@@ -38,6 +39,11 @@ export const initSocket = async (httpServer) => {
 
   io.on('connection', (socket) => {
     console.log(`[Socket] User connected: ${socket.user?.name || socket.id}`);
+    const userId = socket.user?.id || socket.user?._id;
+
+    if (userId) socket.join(`user-${userId}`);
+    if (socket.user?.role) socket.join(`role-${socket.user.role}`);
+    if (socket.user?.grnNumber) socket.join(`grn-${socket.user.grnNumber}`);
 
     socket.on('join-room', (complaintId) => {
       socket.join(`complaint-${complaintId}`);
@@ -71,12 +77,36 @@ export const getIO = () => {
 };
 
 export const emitNotification = (target, notification) => {
-  if (!io) return;
-  if (target.userId) {
-    io.to(`user-${target.userId}`).emit('notification', notification);
+  const userId = target.userId || target.id;
+  const isDirectTarget = Boolean(userId || target.grnNumber);
+  if (!userId && !target.grnNumber && !target.role) return;
+  const payload = {
+    ...notification,
+    userId: userId?.toString?.() || userId,
+    role: isDirectTarget ? undefined : target.role,
+    grnNumber: target.grnNumber,
+    read: false,
+    createdAt: notification.createdAt || new Date(),
+  };
+
+  try {
+    const { notifications } = getCollections();
+    notifications.insertOne(payload).catch((error) => {
+      console.error('[Socket] Failed to save notification:', error);
+    });
+  } catch {
+    // Database may not be initialized during early startup or tests.
   }
-  if (target.role) {
-    io.to(`role-${target.role}`).emit('notification', notification);
+
+  if (!io) return;
+  if (payload.userId) {
+    io.to(`user-${payload.userId}`).emit('notification', payload);
+  }
+  if (target.grnNumber) {
+    io.to(`grn-${target.grnNumber}`).emit('notification', payload);
+  }
+  if (!isDirectTarget && target.role) {
+    io.to(`role-${target.role}`).emit('notification', payload);
   }
 };
 

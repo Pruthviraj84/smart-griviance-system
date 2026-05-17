@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Trash2, Users, UserCheck } from 'lucide-react';
 import { API_BASE, API_ENDPOINTS } from '../../utils/api';
 import { getAuthHeaders } from '../../utils/auth';
+import { useToast } from '../../contexts/ToastContext';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import DataTable from '../../components/common/DataTable';
@@ -10,6 +11,7 @@ import Skeleton from '../../components/common/Skeleton';
 import EmptyState from '../../components/common/EmptyState';
 
 export default function SuperAdminUsers() {
+  const { success, error: showError } = useToast();
   const [students, setStudents] = useState([]);
   const [workers, setWorkers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,13 +40,20 @@ export default function SuperAdminUsers() {
   const handleDeleteWorker = async (worker) => {
     if (!window.confirm(`Delete ${worker.name}?`)) return;
     try {
-      await fetch(`${API_BASE}${API_ENDPOINTS.DELETE_WORKER(worker.id || worker._id)}`, {
+      const res = await fetch(`${API_BASE}${API_ENDPOINTS.DELETE_WORKER(worker.id || worker._id)}`, {
         method: 'DELETE',
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       });
-      fetchData();
+      if (res.ok) {
+        success('Worker deleted successfully');
+        fetchData();
+      } else {
+        const data = await res.json();
+        showError(data.message || 'Failed to delete worker');
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Delete error:', err);
+      showError('Failed to delete worker');
     }
   };
 

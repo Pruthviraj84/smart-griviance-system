@@ -54,6 +54,9 @@ export const connectDB = async () => {
     const defaultWorkers = [
       { name: 'Vikram', email: 'vikram@hostel.com', phone: '9876543201', role: 'Worker', password: await hashPassword('Worker@123'), specializations: ['Electric', 'Internet'], maxWorkload: 5, isActive: true, rating: 4.5, totalCompleted: 12, createdAt: new Date() },
       { name: 'Rajesh', email: 'rajesh@hostel.com', phone: '9876543202', role: 'Worker', password: await hashPassword('Worker@123'), specializations: ['Plumbing', 'Cleaning'], maxWorkload: 5, isActive: true, rating: 4.2, totalCompleted: 8, createdAt: new Date() },
+      { name: 'Suresh', email: 'suresh@hostel.com', phone: '9876543203', role: 'Worker', password: await hashPassword('Worker@123'), specializations: ['Electric', 'Plumbing'], maxWorkload: 5, isActive: true, rating: 4.4, totalCompleted: 10, createdAt: new Date() },
+      { name: 'Amit', email: 'amit@hostel.com', phone: '9876543204', role: 'Worker', password: await hashPassword('Worker@123'), specializations: ['Cleaning', 'Internet'], maxWorkload: 5, isActive: true, rating: 4.1, totalCompleted: 7, createdAt: new Date() },
+      { name: 'Nitin', email: 'nitin@hostel.com', phone: '9876543205', role: 'Worker', password: await hashPassword('Worker@123'), specializations: ['Plumbing', 'Cleaning', 'Electric'], maxWorkload: 5, isActive: true, rating: 4.3, totalCompleted: 9, createdAt: new Date() },
     ];
 
     for (const worker of defaultWorkers) {
@@ -61,6 +64,23 @@ export const connectDB = async () => {
       const existingWorker = await collections.workers.findOne({ email: normalizedWorker.email });
       if (!existingWorker) {
         await collections.workers.insertOne(normalizedWorker);
+      } else {
+        await collections.workers.updateOne(
+          { email: normalizedWorker.email },
+          {
+            $set: {
+              name: normalizedWorker.name,
+              phone: normalizedWorker.phone,
+              role: 'Worker',
+              specializations: normalizedWorker.specializations,
+              specialization: normalizedWorker.specializations[0] || 'General',
+              maxWorkload: normalizedWorker.maxWorkload,
+              isActive: normalizedWorker.isActive,
+              rating: existingWorker.rating ?? normalizedWorker.rating,
+              updatedAt: new Date(),
+            },
+          }
+        );
       }
     }
 

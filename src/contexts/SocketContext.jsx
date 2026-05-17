@@ -14,8 +14,10 @@ export const SocketProvider = ({ children }) => {
       if (socket) {
         const onConnect = () => setIsConnected(true);
         const onDisconnect = () => setIsConnected(false);
+        
         socket.on('connect', onConnect);
         socket.on('disconnect', onDisconnect);
+        
         if (socket.connected) setIsConnected(true);
 
         return () => {
