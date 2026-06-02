@@ -185,7 +185,7 @@ CLIENT_ORIGIN=http://localhost:5173
 
 ### Admin
 - Email: `admin@hostel.com`
-- Password: `Admin@123`
+- Password: `Admin123`
 
 ### Super Admin
 - Email: `superadmin@hostel.com`

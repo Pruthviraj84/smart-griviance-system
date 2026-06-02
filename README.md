@@ -140,7 +140,7 @@ The **Smart Hostel Grievance System** is a full-stack application built to simpl
 | Student | Register new account | — |
 | Worker | `vikram@hostel.com` | `Worker@123` |
 | Worker | `rajesh@hostel.com` | `Worker@123` |
-| Admin | `admin@hostel.com` | `Admin@123` |
+| Admin | `admin@hostel.com` | `Admin123` |
 | SuperAdmin | `superadmin@hostel.com` | `SuperAdmin@123` |
 
 ---
@@ -415,7 +415,7 @@ The frontend will start on `http://localhost:5173`
 | Field | Value |
 |-------|-------|
 | Email | `admin@hostel.com` |
-| Password | `Admin@123` |
+| Password | `Admin123` |
 
 ### Student Accounts
 Students can register themselves through the registration form on the frontend.

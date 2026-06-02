@@ -312,7 +312,7 @@ Default admin:
 
 ```txt
 Email: admin@hostel.com
-Password: Admin@123
+Password: Admin123
 ```
 
 Default super admin:

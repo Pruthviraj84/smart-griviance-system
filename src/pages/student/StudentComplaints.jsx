@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, AlertCircle } from 'lucide-react';
+import { Plus, Mic, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { API_BASE, API_ENDPOINTS } from '../../utils/api';
@@ -38,6 +38,8 @@ export default function StudentComplaints() {
   const [images, setImages] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formErrors, setFormErrors] = useState({});
+  const [listeningField, setListeningField] = useState(null);
+  const [recognitionSupported, setRecognitionSupported] = useState(false);
   const analysis = useMemo(() => analyzeComplaint(form), [form]);
   const descriptionLength = form.description.trim().length;
 
@@ -72,8 +74,50 @@ export default function StudentComplaints() {
   }, [activeTab, searchParams]);
 
   useEffect(() => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition || window.mozSpeechRecognition || window.msSpeechRecognition;
+
+    setRecognitionSupported(Boolean(SpeechRecognition));
+  }, []);
+
+  useEffect(() => {
     fetchComplaints();
   }, [fetchComplaints]);
+
+  const startVoiceTyping = (field) => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition || window.mozSpeechRecognition || window.msSpeechRecognition;
+
+    if (!SpeechRecognition) return;
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.continuous = false;
+
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .map((result) => result[0].transcript)
+        .join('');
+
+      setForm((current) => ({
+        ...current,
+        [field]: `${current[field]} ${transcript}`.trim(),
+      }));
+    };
+
+    recognition.onend = () => {
+      setListeningField(null);
+    };
+
+    recognition.onerror = () => {
+      setListeningField(null);
+    };
+
+    setListeningField(field);
+    recognition.start();
+  };
 
   const validateForm = () => {
     const errors = {};
@@ -221,25 +265,50 @@ export default function StudentComplaints() {
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">Title <span className="text-red-500">*</span></label>
-            <input
-              value={form.title}
-              onChange={(e) => { setForm((p) => ({ ...p, title: e.target.value })); if (formErrors.title) setFormErrors((p) => ({ ...p, title: '' })); }}
-              className={`w-full rounded-xl border bg-gray-50 px-4 py-2.5 text-sm focus:ring-2 outline-none ${formErrors.title ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : 'border-gray-200 focus:border-primary-400 focus:ring-primary-100'}`}
-              placeholder="Brief title of the issue"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                value={form.title}
+                onChange={(e) => { setForm((p) => ({ ...p, title: e.target.value })); if (formErrors.title) setFormErrors((p) => ({ ...p, title: '' })); }}
+                className={`flex-1 rounded-xl border bg-gray-50 px-4 py-2.5 text-sm focus:ring-2 outline-none ${formErrors.title ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : 'border-gray-200 focus:border-primary-400 focus:ring-primary-100'}`}
+                placeholder="Brief title of the issue"
+              />
+              {recognitionSupported && (
+                <button
+                  type="button"
+                  onClick={() => startVoiceTyping('title')}
+                  className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border border-gray-200 bg-white text-slate-600 transition hover:border-primary-400 hover:bg-primary-50 ${listeningField === 'title' ? 'border-red-300 bg-red-50 text-red-600' : ''}`}
+                  title={listeningField === 'title' ? 'Listening for title...' : 'Voice type title'}
+                >
+                  <Mic className="h-5 w-5" />
+                </button>
+              )}
+            </div>
             {formErrors.title && (
               <p className="mt-1 text-xs text-red-600 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{formErrors.title}</p>
             )}
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">Description <span className="text-red-500">*</span></label>
-            <textarea
-              value={form.description}
-              onChange={(e) => { setForm((p) => ({ ...p, description: e.target.value })); if (formErrors.description) setFormErrors((p) => ({ ...p, description: '' })); }}
-              rows={3}
-              className={`w-full rounded-xl border bg-gray-50 px-4 py-2.5 text-sm focus:ring-2 outline-none resize-none ${formErrors.description ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : 'border-gray-200 focus:border-primary-400 focus:ring-primary-100'}`}
-              placeholder="Describe the issue in detail"
-            />
+            <div className="flex flex-col gap-2">
+              <textarea
+                value={form.description}
+                onChange={(e) => { setForm((p) => ({ ...p, description: e.target.value })); if (formErrors.description) setFormErrors((p) => ({ ...p, description: '' })); }}
+                rows={3}
+                className={`w-full rounded-xl border bg-gray-50 px-4 py-2.5 text-sm focus:ring-2 outline-none resize-none ${formErrors.description ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : 'border-gray-200 focus:border-primary-400 focus:ring-primary-100'}`}
+                placeholder="Describe the issue in detail"
+              />
+              {recognitionSupported && (
+                <button
+                  type="button"
+                  onClick={() => startVoiceTyping('description')}
+                  className={`inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-primary-400 hover:bg-primary-50 ${listeningField === 'description' ? 'border-red-300 bg-red-50 text-red-600' : ''}`}
+                  title={listeningField === 'description' ? 'Listening for description...' : 'Voice type description'}
+                >
+                  <Mic className="h-4 w-4" />
+                  {listeningField === 'description' ? 'Listening...' : 'Voice type description'}
+                </button>
+              )}
+            </div>
             <div className="mt-1 flex items-center justify-between text-xs">
               <span className={descriptionLength < 20 ? 'text-amber-600' : 'text-slate-500'}>{descriptionLength}/20 minimum characters</span>
               <span className="font-medium text-slate-600">Score {analysis.priorityScore}</span>

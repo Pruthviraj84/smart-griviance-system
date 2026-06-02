@@ -147,7 +147,7 @@ if (res.ok) {
 
 2. **Test Admin Login**
    - Email: `admin@hostel.com`
-   - Password: `Admin@123`
+   - Password: `Admin123`
 
 3. **Test Worker Creation**
    - Fill worker form with valid data

@@ -122,7 +122,7 @@ Login as admin.
 ```json
 {
   "email": "admin@hostel.com",
-  "password": "Admin@123"
+  "password": "Admin123"
 }
 ```
 

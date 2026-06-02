@@ -159,7 +159,7 @@ router.patch('/students/me', verifyToken, requireRole('Student'), async (req, re
 router.post('/admin/login', async (req, res) => {
   const { email, password } = req.body;
   const adminEmail = 'admin@hostel.com';
-  const adminPassword = 'Admin@123';
+  const adminPassword = 'Admin123';
 
   if (email === adminEmail && password === adminPassword) {
     const adminUser = {
@@ -267,7 +267,7 @@ router.post('/login', async (req, res) => {
 
     // 3. Try Admin
     const adminEmail = 'admin@hostel.com';
-    const adminPassword = 'Admin@123';
+    const adminPassword = 'Admin123';
     if (normalizedIdentifier === adminEmail.toLowerCase() && password === adminPassword) {
       const adminUser = { _id: 'admin-id', email: adminEmail, name: 'Hostel Admin', role: 'Admin' };
       const token = generateToken(adminUser);

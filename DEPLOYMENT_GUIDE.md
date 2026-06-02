@@ -56,7 +56,7 @@ http://localhost:5173
 ### Default Admin Account
 ```
 Email: admin@hostel.com
-Password: Admin@123
+Password: Admin123
 Role: Admin
 ```
 

@@ -168,7 +168,7 @@ VITE_API_BASE=http://localhost:4000
 
 **Default Test Credentials**:
 - **SuperAdmin**: superadmin@hostel.com / SuperAdmin@123
-- **Admin**: admin@hostel.com / Admin@123
+- **Admin**: admin@hostel.com / Admin123
 - **Students**: Register via registration form
 - **Workers**: Created via Admin Dashboard
 

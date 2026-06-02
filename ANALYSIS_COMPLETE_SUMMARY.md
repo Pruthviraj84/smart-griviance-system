@@ -197,7 +197,7 @@ http://localhost:5173
 
 # Login with:
 Email: admin@hostel.com
-Password: Admin@123
+Password: Admin123
 ```
 
 ### What to Test First

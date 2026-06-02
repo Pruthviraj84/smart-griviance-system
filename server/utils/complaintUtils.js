@@ -41,7 +41,7 @@ export const CATEGORY_KEYWORDS = {
   Electric: ['wire', 'switch', 'fan', 'light', 'electricity', 'electric', 'socket', 'power', 'bulb', 'short circuit', 'spark'],
   Plumbing: ['water', 'leakage', 'leak', 'tap', 'pipe', 'bathroom', 'washroom', 'flush', 'drain', 'geyser'],
   Internet: ['wifi', 'wi-fi', 'network', 'internet', 'router', 'lan', 'connection'],
-  Furniture: ['bed', 'table', 'chair', 'cupboard', 'almirah', 'mattress', 'furniture'],
+  Furniture: ['bed', 'table', 'chair', 'cupboard', 'almirah', 'mattress', 'furniture',],
   Security: ['security', 'lock', 'broken lock', 'door', 'theft', 'stolen', 'cctv', 'guard', 'safety'],
   Cleaning: ['clean', 'cleaning', 'dirty', 'dust', 'garbage', 'trash', 'smell', 'hygiene'],
   Food: ['food', 'mess', 'meal', 'canteen', 'breakfast', 'lunch', 'dinner'],
@@ -62,14 +62,14 @@ export const URGENT_ALLOWED_KEYWORDS = [
 ];
 
 export const PRIORITY_SCORE_KEYWORDS = {
-  safety: ['fire', 'spark', 'sparks', 'short circuit', 'security', 'broken lock', 'safety', 'unsafe', 'shock', 'smoke'],
+  safety: ['fire', 'spark', 'sparks', 'short circuit', 'security', 'broken lock', 'safety', 'unsafe', 'shock', 'smoke','unsafe','urgent', 'immediate', 'asap', 'emergency'],
   damage: ['leakage', 'leak', 'flood', 'broken', 'damage', 'crack', 'not working', 'burst'],
   minor: ['noise', 'noisy', 'slow', 'minor', 'loose', 'dirty', 'cleaning', 'small'],
 };
 
 export const PRIORITY_KEYWORDS = {
   Urgent: URGENT_ALLOWED_KEYWORDS,
-  High: ['major leakage', 'water leakage', 'broken', 'not working', 'failure', 'outage', 'danger', 'unsafe'],
+  High: ['major leakage', 'water leakage', 'broken', 'not working', 'failure', 'outage', 'danger', 'unsafe','urgent', 'immediate', 'asap', 'emergency'],
   Medium: ['dirty', 'dusty', 'noisy', 'slow', 'weak', 'partial', 'minor', 'small'],
   Low: ['cosmetic', 'aesthetic', 'suggestion', 'improvement', 'optional'],
 };

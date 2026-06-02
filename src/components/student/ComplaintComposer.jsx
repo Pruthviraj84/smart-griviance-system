@@ -1,4 +1,4 @@
-import { ClipboardList, Plus } from 'lucide-react';
+import { ClipboardList, Mic, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { inferComplaintCategory, inferComplaintPriority } from '../../utils/helpers';
 import { CategoryBadge } from './CategoryBadge';
@@ -32,6 +32,8 @@ export function ComplaintComposer({ user, loading, onSubmit }) {
   const [files, setFiles] = useState([]);
   const [dragActive, setDragActive] = useState(false);
   const [previewUrls, setPreviewUrls] = useState([]);
+  const [listeningField, setListeningField] = useState(null);
+  const [recognitionSupported, setRecognitionSupported] = useState(false);
 
   const detectedCategory = inferComplaintCategory(form);
   const finalCategory = form.category || detectedCategory;
@@ -46,7 +48,49 @@ export function ComplaintComposer({ user, loading, onSubmit }) {
     };
   }, [files]);
 
+  useEffect(() => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition || window.mozSpeechRecognition || window.msSpeechRecognition;
+
+    setRecognitionSupported(Boolean(SpeechRecognition));
+  }, []);
+
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+
+  const startVoiceTyping = async (field) => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition || window.mozSpeechRecognition || window.msSpeechRecognition;
+
+    if (!SpeechRecognition) return;
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+    recognition.continuous = false;
+
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .map((result) => result[0].transcript)
+        .join('');
+
+      setForm((current) => ({
+        ...current,
+        [field]: `${current[field]} ${transcript}`.trim(),
+      }));
+    };
+
+    recognition.onend = () => {
+      setListeningField(null);
+    };
+
+    recognition.onerror = () => {
+      setListeningField(null);
+    };
+
+    setListeningField(field);
+    recognition.start();
+  };
 
   const submit = (event) => {
     event.preventDefault();
@@ -163,12 +207,24 @@ export function ComplaintComposer({ user, loading, onSubmit }) {
         {/* Main Form Fields */}
         <div className="grid gap-5 lg:grid-cols-2">
           <Field label="Complaint Title" required>
-            <input
-              value={form.title}
-              onChange={(event) => update('title', event.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
-              placeholder="e.g., Water leaking from ceiling"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                value={form.title}
+                onChange={(event) => update('title', event.target.value)}
+                className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                placeholder="e.g., Water leaking from ceiling"
+              />
+              {recognitionSupported && (
+                <button
+                  type="button"
+                  onClick={() => startVoiceTyping('title')}
+                  className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 text-slate-600 transition hover:border-cyan-500 hover:bg-cyan-50 ${listeningField === 'title' ? 'border-red-400 bg-red-50 text-red-600' : ''}`}
+                  title={listeningField === 'title' ? 'Listening for title...' : 'Use voice typing for title'}
+                >
+                  <Mic className="h-5 w-5" />
+                </button>
+              )}
+            </div>
           </Field>
 
           <Field label="Hostel" required>
@@ -251,12 +307,25 @@ export function ComplaintComposer({ user, loading, onSubmit }) {
 
         {/* Description */}
         <Field label="Description" required hint="Provide detailed information about the issue">
-          <textarea
-            value={form.description}
-            onChange={(event) => update('description', event.target.value)}
-            className="min-h-32 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
-            placeholder="Describe what happened, what's broken, and any other details..."
-          />
+          <div className="flex flex-col gap-2">
+            <textarea
+              value={form.description}
+              onChange={(event) => update('description', event.target.value)}
+              className="min-h-32 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+              placeholder="Describe what happened, what's broken, and any other details..."
+            />
+            {recognitionSupported && (
+              <button
+                type="button"
+                onClick={() => startVoiceTyping('description')}
+                className={`self-start inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-500 hover:bg-cyan-50 ${listeningField === 'description' ? 'border-red-400 bg-red-50 text-red-600' : ''}`}
+                title={listeningField === 'description' ? 'Listening for description...' : 'Use voice typing for description'}
+              >
+                <Mic className="h-4 w-4" />
+                {listeningField === 'description' ? 'Listening...' : 'Voice type description'}
+              </button>
+            )}
+          </div>
         </Field>
 
         {/* Image Upload */}
