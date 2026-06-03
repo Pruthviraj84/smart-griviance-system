@@ -18,3 +18,7 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
+      - key: CLIENT_ORIGIN
+        value: http://localhost:5173
+      - key: VITE_API_BASE
+        value: ""

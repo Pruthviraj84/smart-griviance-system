@@ -357,13 +357,15 @@ npm install
 copy .env.example .env
 ```
 
-2. Default `.env` contents (works for local development):
+2. Update `.env` with your settings. A working local example is:
 ```env
 MONGODB_URI=mongodb://127.0.0.1:27017
 DB_NAME=smart-hostel
+PORT=4000
+JWT_SECRET=super-secret-change-me
+JWT_EXPIRY=7d
 CLIENT_ORIGIN=http://localhost:5173
 VITE_API_BASE=http://localhost:4000
-PORT=4000
 ```
 
 ### Step 4: Start MongoDB

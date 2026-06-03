@@ -14,7 +14,7 @@ export default defineConfig({
     strictPort: false, // auto-increment if port is occupied
     proxy: {
       '/api': {
-        target: process.env.VITE_API_BASE || 'http://localhost:4000',
+        target: process.env.VITE_API_BASE || 'https://smart-griviance-system-1w1z.onrender.com',
         changeOrigin: true,
       },
     },
