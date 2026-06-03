@@ -1,8 +1,6 @@
 // API configuration and helpers
 const rawApiBase = import.meta.env.VITE_API_BASE || '';
-export const API_BASE = rawApiBase.replace(/\/$/, '');;
-
-export { API_BASE };
+export const API_BASE = rawApiBase.replace(/\/$/, '');
 
 export const API_ENDPOINTS = {
   // Auth
