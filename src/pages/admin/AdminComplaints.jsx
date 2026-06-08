@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Armchair, Droplets, Flame, Search, Shield, UserCheck, Wifi, Wrench, Zap } from 'lucide-react';
+import { Armchair, Droplets, Flame, Search, Shield, UserCheck, Wifi, Wrench, Zap, Image, Eye } from 'lucide-react';
 import { API_BASE, API_ENDPOINTS } from '../../utils/api';
 import { getAuthHeaders } from '../../utils/auth';
 import { CATEGORIES, PRIORITIES, COMPLAINT_STATUSES } from '../../utils/constants';
@@ -11,7 +11,7 @@ import Modal from '../../components/common/Modal';
 import DataTable from '../../components/common/DataTable';
 import EmptyState from '../../components/common/EmptyState';
 import { useToast } from '../../contexts/ToastContext';
-import { formatDateTime, normalizeCategory } from '../../utils/helpers';
+import { formatDateTime, normalizeCategory, getImageUrl } from '../../utils/helpers';
 
 const categoryIconMap = {
   Electric: Zap,
@@ -63,6 +63,9 @@ export default function AdminComplaints() {
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assignWorkerId, setAssignWorkerId] = useState('');
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [galleryImages, setGalleryImages] = useState([]);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [estimatedCompletionTime, setEstimatedCompletionTime] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
 
@@ -107,6 +110,13 @@ export default function AdminComplaints() {
     setAssignWorkerId('');
     setEstimatedCompletionTime('');
     setShowAssignModal(true);
+  };
+
+  const openImageGallery = (complaint) => {
+    const images = complaint.images?.length ? complaint.images : complaint.before_image?.map((url) => ({ url })) || [];
+    setGalleryImages(images);
+    setSelectedImageIndex(0);
+    setShowImageModal(true);
   };
 
   const handleAssign = async () => {
@@ -179,6 +189,21 @@ export default function AdminComplaints() {
     },
     { key: 'priority', header: 'Priority', render: (value) => <Badge priority={value}>{value}</Badge> },
     { key: 'status', header: 'Status', render: (value) => <Badge status={value}>{value}</Badge> },
+    {
+      key: 'images',
+      header: 'Images',
+      render: (_, row) => {
+        const thumb = row.images?.[0]?.url || row.before_image?.[0];
+        return thumb ? (
+          <button type="button" onClick={(event) => { event.stopPropagation(); openImageGallery(row); }} className="group inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50">
+            <Image className="h-3.5 w-3.5 text-slate-500 group-hover:text-cyan-600" />
+            {row.images?.length || row.before_image?.length || 1}
+          </button>
+        ) : (
+          <span className="text-xs text-slate-500">No images</span>
+        );
+      },
+    },
     {
       key: 'assignedWorkerName',
       header: 'Assigned Worker',
@@ -396,6 +421,32 @@ export default function AdminComplaints() {
               {!assignWorkerId ? 'Select Worker First' : isReassign ? 'Reassign Worker' : 'Assign Complaint'}
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={showImageModal} onClose={() => setShowImageModal(false)} title="Complaint Images" size="xl">
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {galleryImages.map((image, index) => {
+              const url = getImageUrl(image);
+              return (
+                <button
+                  key={`${image.public_id || index}-${index}`}
+                  type="button"
+                  onClick={() => setSelectedImageIndex(index)}
+                  className={`rounded-2xl overflow-hidden border p-1 transition ${selectedImageIndex === index ? 'border-cyan-400 shadow-sm' : 'border-slate-200'}`}
+                >
+                  <img src={url} alt={`Complaint image ${index + 1}`} className="h-28 w-full object-cover" />
+                </button>
+              );
+            })}
+          </div>
+
+          {galleryImages[selectedImageIndex] && (
+            <div className="rounded-3xl overflow-hidden border border-slate-200 bg-slate-900 p-2">
+              <img src={getImageUrl(galleryImages[selectedImageIndex])} alt="Selected complaint" className="w-full max-h-[550px] object-contain" />
+            </div>
+          )}
         </div>
       </Modal>
     </div>

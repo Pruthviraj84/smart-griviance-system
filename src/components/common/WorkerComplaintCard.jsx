@@ -3,6 +3,7 @@ import Badge from './Badge';
 import Button from './Button';
 import Card from './Card';
 import { ImageGallery } from './ImageGallery';
+import { getImageUrl } from '../../utils/helpers';
 
 export default function WorkerComplaintCard({ complaint, onStartWork, onCompleteWork, isLoading, userRole }) {
   const isWorker = userRole === 'Worker';
@@ -71,7 +72,7 @@ export default function WorkerComplaintCard({ complaint, onStartWork, onComplete
               <div>
                 <p className="text-sm font-medium text-slate-700 mb-2">Completion Proof</p>
                 <img
-                  src={complaint.completionImage}
+                  src={getImageUrl(complaint.completionImage)}
                   alt="Completion proof"
                   className="w-full h-auto max-h-72 object-cover rounded-lg border border-slate-200"
                 />

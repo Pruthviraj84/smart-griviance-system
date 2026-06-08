@@ -2,7 +2,11 @@ import express from 'express';
 import { ObjectId } from 'mongodb';
 import { getCollections } from '../config/db.js';
 import { upload } from '../middleware/upload.js';
+import { complaintImageUpload } from '../middleware/cloudinaryUpload.js';
 import { verifyToken, requireRole } from '../middleware/auth.js';
+import { validateComplaint } from '../middleware/validateComplaint.js';
+import { asyncWrapper } from '../utils/asyncWrapper.js';
+import * as complaintController from '../controllers/complaintController.js';
 import {
   CATEGORY_PRIORITY, 
   inferPriorityFromText,
@@ -245,233 +249,11 @@ const updateComplaintStatus = async (req, res) => {
   }
 };
 
-router.get('/', verifyToken, async (req, res) => {
-  try {
-    const { complaints } = getCollections();
-    const { role } = req.user;
-    const { page = 1, limit = 10, status, category, priority, dateFrom, dateTo, assignedTo, search } = req.query;
-    
-    let query = {};
-    
-    // If student, only show their complaints
-    if (role === 'Student') {
-      query.grnNumber = req.user.grnNumber;
-    }
-    
-    if (status) query.status = normalizeStatus(status);
-    if (category) query.category = category;
-    if (priority) query.priority = priority;
-    if (assignedTo) query.assignedTo = assignedTo;
-    
-    if (dateFrom || dateTo) {
-      query.createdAt = {};
-      if (dateFrom) query.createdAt.$gte = new Date(dateFrom);
-      if (dateTo) query.createdAt.$lte = new Date(dateTo);
-    }
-    
-    if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-        { studentName: { $regex: search, $options: 'i' } },
-        { grnNumber: { $regex: search, $options: 'i' } },
-      ];
-    }
+router.get('/', verifyToken, asyncWrapper(complaintController.getAllComplaints));
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const total = await complaints.countDocuments(query);
-    
-    const list = await complaints.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .toArray();
+router.post('/', verifyToken, complaintImageUpload.array('images', 5), validateComplaint, asyncWrapper(complaintController.createComplaint));
 
-    return res.json({
-      complaints: list.map(toJSON),
-      totalPages: Math.ceil(total / parseInt(limit)),
-      currentPage: parseInt(page),
-      total
-    });
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
-});
-
-router.post('/', verifyToken, upload.array('images', 5), async (req, res) => {
-  try {
-    const { complaints, students } = getCollections();
-    const {
-      title,
-      description,
-      category,
-      priority = 'Medium',
-      type,
-      contact,
-      hostel,
-      roomNo,
-      locationScope = 'Room',
-      locationDetail = '',
-    } = req.body;
-    const user = req.user;
-    
-    if (!title || !description) {
-      return res.status(400).json({ message: 'Title and description are required.' });
-    }
-
-    if (description.trim().length < 20) {
-      return res.status(400).json({ message: 'Description must be at least 20 characters.' });
-    }
-
-    const student = user.role === 'Student'
-      ? await students.findOne({ grnNumber: user.grnNumber || user.email || user.name })
-      : null;
-
-    if (user.role === 'Student' && !student) {
-      return res.status(404).json({ message: 'Student profile not found.' });
-    }
-
-    const profileHostel = student?.hostelName || user.hostelName || '';
-    const profileRoom = student?.roomNumber || user.roomNumber || '';
-
-    if (user.role === 'Student' && (!profileHostel || !profileRoom)) {
-      return res.status(400).json({ message: 'Please complete hostel and room details in your profile before raising a complaint.' });
-    }
-
-    if (user.role === 'Student' && ((hostel && hostel !== profileHostel) || (roomNo && roomNo !== profileRoom))) {
-      return res.status(403).json({ message: 'Unauthorized complaint location.' });
-    }
-
-    const normalizedLocationScope = locationScope === 'Hostel' ? 'Hostel' : 'Room';
-    const normalizedLocationDetail = normalizedLocationScope === 'Hostel'
-      ? locationDetail.trim()
-      : `Room ${profileRoom}`;
-
-    if (normalizedLocationScope === 'Hostel' && normalizedLocationDetail.length < 3) {
-      return res.status(400).json({ message: 'Please enter the hostel area or location before submitting the complaint.' });
-    }
-
-    const rateLimitKey = user.grnNumber || user.email || user.id || user.name;
-    if (!checkSubmissionRateLimit(rateLimitKey)) {
-      return res.status(429).json({ message: 'Too many complaints submitted. Please try again later.' });
-    }
-
-    const images = req.files ? req.files.map(file => `/uploads/${file.filename}`) : [];
-    const intelligence = validateComplaintIntelligence({ title, description, category, priority });
-
-    if (intelligence.categoryMismatch) {
-      return res.status(400).json({ message: 'Selected category does not match your complaint description. Please select the correct category.' });
-    }
-
-    const misuseCount = await complaints.countDocuments({
-      grnNumber: user.grnNumber || user.email || user.id,
-      urgentMisuse: true,
-      createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
-    });
-
-    if (priority === 'Urgent' && misuseCount >= 3) {
-      return res.status(429).json({ message: 'Urgent priority access is temporarily restricted due to repeated misuse.' });
-    }
-
-    const finalCategory = intelligence.validatedCategory || normalizeCategory(category) || 'Others';
-    const finalPriority = intelligence.finalPriority || inferPriorityFromText({ title, description }) || CATEGORY_PRIORITY[finalCategory] || 'Low';
-    
-    const studentName = user.name || 'Unknown';
-    const grnNumber = user.grnNumber || user.email || user.id;
-    const finalHostel = user.role === 'Student' ? profileHostel : hostel;
-    const finalRoomNo = user.role === 'Student' ? profileRoom : roomNo;
-
-    // Check for duplicate complaints from the same student in the last 24 hours.
-    const duplicateQuery = {
-      grnNumber,
-      category: finalCategory,
-      createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
-      status: { $nin: ['Completed', 'Verified', 'Resolved', 'Solved'] }
-    };
-
-    const existingComplaint = await complaints.findOne(duplicateQuery);
-    
-    if (existingComplaint) {
-      // Increment complaint count and add student reference
-      const updated = await complaints.findOneAndUpdate(
-        { _id: existingComplaint._id },
-        { 
-          $inc: { complaintCount: 1 },
-          $addToSet: { reportedBy: grnNumber },
-          $set: { lastUpdatedAt: new Date() }
-        },
-        { returnDocument: 'after' }
-      );
-      
-      return res.status(200).json({ 
-        _id: updated.value._id.toString(), 
-        ...toJSON(updated.value),
-        isDuplicate: true,
-        message: `Similar complaint already exists. Count increased to ${updated.value.complaintCount}`
-      });
-    }
-
-    const complaint = {
-      studentName,
-      grnNumber,
-      title,
-      description,
-      type: type || 'General',
-      category: finalCategory,
-      autoDetectedCategory: intelligence.autoDetectedCategory,
-      validatedCategory: finalCategory,
-      recommendedPriority: intelligence.recommendedPriority,
-      priorityScore: intelligence.priorityScore,
-      validationWarnings: intelligence.validationWarnings,
-      urgentMisuse: intelligence.urgentMisuse,
-      priority: finalPriority,
-      requestedPriority: priority,
-      contact,
-      hostel: finalHostel,
-      hostelName: finalHostel,
-      roomNo: finalRoomNo,
-      roomNumber: finalRoomNo,
-      locationScope: normalizedLocationScope,
-      locationDetail: normalizedLocationDetail,
-      location: normalizedLocationDetail,
-      images,
-      before_image: images,
-      after_image: [],
-      completionImage: null,
-      workerProofImages: [],
-      workerRemarks: '',
-      remarks: '',
-      complaintCount: 1,
-      reportedBy: [grnNumber],
-      workerSubmittedProof: false,
-      studentConfirmed: false,
-      studentFeedback: '',
-      verificationStatus: 'Pending',
-      verifiedBy: null,
-      verifiedAt: null,
-      escalated: false,
-      escalatedAt: null,
-      resolvedBy: null,
-      resolvedAt: null,
-      status: 'Pending',
-      assignedTo: 'Not assigned',
-      assignedWorkerId: null,
-      assigned_worker_id: null,
-      assignedBy: null,
-      assignedByAdmin: null,
-      assignedDate: null,
-      assignmentHistory: [],
-      createdAt: new Date(),
-      created_at: new Date(),
-      lastUpdatedAt: new Date(),
-    };
-
-    const result = await complaints.insertOne(complaint);
-    return res.status(201).json({ _id: result.insertedId.toString(), ...complaint });
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
-});
+router.put('/:id', verifyToken, complaintImageUpload.array('images', 5), validateComplaint, asyncWrapper(complaintController.updateComplaint));
 
 // Routes for status update (both patterns supported)
 router.patch('/status/:id', verifyToken, requireRole('Admin', 'SuperAdmin', 'Super Admin'), updateComplaintStatus);
@@ -757,17 +539,7 @@ router.get('/workers/workload', verifyToken, requireRole('Admin', 'SuperAdmin', 
   }
 });
 
-router.get('/:id', verifyToken, async (req, res) => {
-  try {
-    const { complaints } = getCollections();
-    const { id } = req.params;
-    const complaint = await complaints.findOne({ _id: new ObjectId(id) });
-    if (!complaint) return res.status(404).json({ message: 'Complaint not found.' });
-    return res.json(toJSON(complaint));
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
-});
+router.get('/:id', verifyToken, asyncWrapper(complaintController.getComplaintById));
 
 router.patch('/:id/priority', verifyToken, requireRole('SuperAdmin', 'Super Admin'), async (req, res) => {
   try {
@@ -1012,6 +784,8 @@ router.delete('/:id', verifyToken, requireRole('Admin', 'SuperAdmin', 'Super Adm
     if (!CLOSED_STATUSES.includes(complaint.status)) {
       return res.status(400).json({ message: 'Only solved complaints can be removed.' });
     }
+
+    await complaintController.deleteComplaint(complaint);
 
     const removedAt = new Date();
     await complaintArchive.insertOne({

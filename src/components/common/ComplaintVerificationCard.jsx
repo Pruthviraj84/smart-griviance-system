@@ -3,13 +3,14 @@ import Badge from './Badge';
 import Button from './Button';
 import Card from './Card';
 import { useState } from 'react';
+import { getImageUrl } from '../../utils/helpers';
 
 export default function ComplaintVerificationCard({ complaint, onVerify, onReject, isLoading, userRole }) {
   const isAdmin = ['Admin', 'SuperAdmin', 'Super Admin'].includes(userRole);
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
-  const completionImage = complaint?.completionImage || complaint?.workerProofImages?.[0] || complaint?.after_image?.[0];
-  const beforeImage = complaint?.images?.[0] || complaint?.before_image?.[0];
+  const completionImage = getImageUrl(complaint?.completionImage || complaint?.workerProofImages?.[0] || complaint?.after_image?.[0]);
+  const beforeImage = getImageUrl(complaint?.images?.[0] || complaint?.before_image?.[0]);
 
   if (!isAdmin || complaint?.status !== 'Completed') {
     return null;

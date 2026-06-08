@@ -1,3 +1,5 @@
+import { API_BASE } from './api';
+
 const categoryKeywords = {
   Plumbing: ['water', 'tap', 'pipe', 'leak', 'leaking', 'leakage', 'bathroom', 'washroom', 'flush', 'drain', 'geyser'],
   Electric: ['electric', 'electricity', 'light', 'fan', 'switch', 'socket', 'wire', 'power', 'bulb', 'charging', 'short circuit', 'spark'],
@@ -228,7 +230,21 @@ export function shortId(item) {
   return String(item._id || '000000').slice(-6).toUpperCase();
 }
 
+export function getImageUrl(img) {
+  if (!img) return '';
+  const url = typeof img === 'string' ? img : (img.url || img.secure_url || '');
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  const base = API_BASE ? API_BASE.replace(/\/$/, '') : '';
+  const path = url.startsWith('/') ? url : `/${url}`;
+  return `${base}${path}`;
+}
+
 export function imageList(value) {
   if (!value) return [];
-  return Array.isArray(value) ? value : [value];
+  const list = Array.isArray(value) ? value : [value];
+  return list.map(getImageUrl).filter(Boolean);
 }
+

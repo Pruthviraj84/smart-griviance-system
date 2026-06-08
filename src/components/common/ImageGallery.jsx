@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { API_BASE } from '../../utils/api';
+import { getImageUrl } from '../../utils/helpers';
 
 export function ImageGallery({ images = [], label = 'Image', compact = false }) {
   const [selectedIndex, setSelectedIndex] = useState(null);
@@ -32,7 +33,7 @@ export function ImageGallery({ images = [], label = 'Image', compact = false }) 
             onClick={(e) => { e.stopPropagation(); setSelectedIndex(index); }}
             className="grid h-14 w-14 place-items-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100 transition hover:ring-2 hover:ring-cyan-500"
           >
-            <img src={`${API_BASE}${src}`} alt={`${label} ${index + 1}`} className="h-full w-full object-cover" />
+            <img src={getImageUrl(src)} alt={`${label} ${index + 1}`} className="h-full w-full object-cover" />
           </button>
         ))}
         {images.length > (compact ? 2 : 4) && (
@@ -64,7 +65,7 @@ export function ImageGallery({ images = [], label = 'Image', compact = false }) 
           )}
 
           <img 
-            src={`${API_BASE}${images[selectedIndex]}`} 
+            src={getImageUrl(images[selectedIndex])} 
             alt={`Full size ${selectedIndex + 1}`} 
             className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl"
             onClick={(e) => e.stopPropagation()} 
@@ -86,7 +87,7 @@ export function ImageGallery({ images = [], label = 'Image', compact = false }) 
                 onClick={() => setSelectedIndex(idx)}
                 className={`h-16 w-16 overflow-hidden rounded-lg border-2 transition ${idx === selectedIndex ? 'border-cyan-400 scale-110' : 'border-transparent opacity-50 hover:opacity-100'}`}
               >
-                <img src={`${API_BASE}${src}`} alt={`Thumbnail ${idx + 1}`} className="h-full w-full object-cover" />
+                <img src={getImageUrl(src)} alt={`Thumbnail ${idx + 1}`} className="h-full w-full object-cover" />
               </button>
             ))}
           </div>

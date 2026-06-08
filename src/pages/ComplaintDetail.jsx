@@ -12,6 +12,7 @@ import ChatBox from '../components/common/ChatBox';
 import RatingStars from '../components/common/RatingStars';
 import Skeleton from '../components/common/Skeleton';
 import Modal from '../components/common/Modal';
+import { getImageUrl } from '../utils/helpers';
 
 export default function ComplaintDetail() {
   const { user } = useAuth();
@@ -324,34 +325,46 @@ export default function ComplaintDetail() {
             </div>
           </Card>
 
-          {complaint.before_image?.length > 0 && (
-            <Card>
-              <h3 className="text-sm font-semibold text-slate-900 mb-3 uppercase tracking-wide">Before Images</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {complaint.before_image.map((img, i) => (
-                  <button key={i} type="button" onClick={() => openImage(img)} className="group relative overflow-hidden rounded-xl border border-gray-100 aspect-square">
-                    <img src={img} alt="Before" className="h-full w-full object-cover transition group-hover:scale-105" />
-                    <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/30 group-hover:opacity-100">
-                      <Maximize2 className="h-5 w-5" />
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </Card>
-          )}
+          {(() => {
+            const problemImages = complaint.images?.length 
+              ? complaint.images 
+              : complaint.before_image?.map(img => typeof img === 'string' ? { url: img } : img) || [];
+            if (!problemImages.length) return null;
+            return (
+              <Card>
+                <h3 className="text-sm font-semibold text-slate-900 mb-3 uppercase tracking-wide">Before Images</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {problemImages.map((img, i) => {
+                    const url = getImageUrl(img);
+                    return (
+                      <button key={i} type="button" onClick={() => openImage(url)} className="group relative overflow-hidden rounded-xl border border-gray-100 aspect-square">
+                        <img src={url} alt="Before" className="h-full w-full object-cover transition group-hover:scale-105" />
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/30 group-hover:opacity-100">
+                          <Maximize2 className="h-5 w-5" />
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </Card>
+            );
+          })()}
 
           {complaint.after_image?.length > 0 && (
             <Card>
               <h3 className="text-sm font-semibold text-slate-900 mb-3 uppercase tracking-wide">After Images</h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {complaint.after_image.map((img, i) => (
-                  <button key={i} type="button" onClick={() => openImage(img)} className="group relative overflow-hidden rounded-xl border border-gray-100 aspect-square">
-                    <img src={img} alt="After" className="h-full w-full object-cover transition group-hover:scale-105" />
-                    <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/30 group-hover:opacity-100">
-                      <Maximize2 className="h-5 w-5" />
-                    </span>
-                  </button>
-                ))}
+                {complaint.after_image.map((img, i) => {
+                  const url = getImageUrl(img);
+                  return (
+                    <button key={i} type="button" onClick={() => openImage(url)} className="group relative overflow-hidden rounded-xl border border-gray-100 aspect-square">
+                      <img src={url} alt="After" className="h-full w-full object-cover transition group-hover:scale-105" />
+                      <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/30 group-hover:opacity-100">
+                        <Maximize2 className="h-5 w-5" />
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </Card>
           )}
@@ -364,9 +377,9 @@ export default function ComplaintDetail() {
                   <p className="text-xs text-slate-500 mt-1">Review the uploaded proof carefully before verifying.</p>
                 </div>
               </div>
-              <button type="button" onClick={() => openImage(complaint.completionImage)} className="group relative block w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+              <button type="button" onClick={() => openImage(getImageUrl(complaint.completionImage))} className="group relative block w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
                 <img
-                  src={complaint.completionImage}
+                  src={getImageUrl(complaint.completionImage)}
                   alt="Completion proof uploaded by worker"
                   className="max-h-[28rem] w-full object-contain bg-slate-100"
                 />

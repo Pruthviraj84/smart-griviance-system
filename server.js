@@ -17,6 +17,7 @@ import adminRoutes from './server/routes/adminRoutes.js';
 import superAdminRoutes from './server/routes/superAdminRoutes.js';
 import chatRoutes from './server/routes/chatRoutes.js';
 import notificationRoutes from './server/routes/notificationRoutes.js';
+import { errorHandler } from './server/middleware/errorHandler.js';
 
 dotenv.config();
 
@@ -76,6 +77,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/superadmin', superAdminRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use(errorHandler);
 
 app.use(express.static(path.join(__dirname, 'dist')));
 app.get(/^\/(?!api\/).*/, (req, res) => {

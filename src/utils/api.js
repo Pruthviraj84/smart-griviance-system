@@ -24,6 +24,7 @@ export const API_ENDPOINTS = {
   AUTO_ASSIGN: (id) => `/api/complaints/${id}/auto-assign`,
   REASSIGN_WORKER: (id) => `/api/complaints/${id}/reassign`,
   UPDATE_PRIORITY: (id) => `/api/complaints/${id}/priority`,
+  UPDATE_COMPLAINT: (id) => `/api/complaints/${id}`,
   DELETE_COMPLAINT: (id) => `/api/complaints/${id}`,
   SUBMIT_PROOF: (id) => `/api/admin/workers/complaints/${id}/complete`,
   VERIFY_COMPLAINT: (id) => `/api/admin/complaints/${id}/verify`,
