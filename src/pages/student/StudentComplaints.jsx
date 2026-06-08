@@ -47,11 +47,24 @@ export default function StudentComplaints() {
 
       const res = await fetch(url, { headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' } });
       if (res.ok) {
-        const data = await res.json();
-        setComplaints(data.complaints || []);
+        const text = await res.text();
+        try {
+          const data = text ? JSON.parse(text) : {};
+          setComplaints(data.complaints || []);
+        } catch {
+          console.error('[fetchComplaints] Non-JSON response from server:', text.slice(0, 200));
+          showError('Received an invalid response from the server. Please try again.');
+        }
       } else {
-        const errorData = await res.json().catch(() => null);
-        showError(errorData?.message || 'Failed to load complaints.');
+        const text = await res.text();
+        let errorMessage = 'Failed to load complaints.';
+        try {
+          const errorData = text ? JSON.parse(text) : null;
+          errorMessage = errorData?.message || errorMessage;
+        } catch {
+          console.error('[fetchComplaints] Non-JSON error response:', text.slice(0, 200));
+        }
+        showError(errorMessage);
       }
     } catch (err) {
       console.error(err);

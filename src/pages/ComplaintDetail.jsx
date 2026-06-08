@@ -51,8 +51,16 @@ export default function ComplaintDetail() {
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       });
       if (res.ok) {
-        const data = await res.json();
-        setComplaint(data);
+        const text = await res.text();
+        try {
+          const data = text ? JSON.parse(text) : null;
+          setComplaint(data);
+        } catch {
+          console.error('[fetchComplaint] Non-JSON response:', text.slice(0, 200));
+        }
+      } else {
+        const text = await res.text();
+        console.error('[fetchComplaint] Error response:', res.status, text.slice(0, 200));
       }
     } catch (err) {
       console.error(err);

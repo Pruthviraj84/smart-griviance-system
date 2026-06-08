@@ -79,8 +79,16 @@ export default function AdminComplaints() {
       const url = `${API_BASE}${API_ENDPOINTS.GET_COMPLAINTS}${params.toString() ? `?${params.toString()}` : ''}`;
       const res = await fetch(url, { headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' } });
       if (res.ok) {
-        const data = await res.json();
-        setComplaints(data.complaints || []);
+        const text = await res.text();
+        try {
+          const data = text ? JSON.parse(text) : {};
+          setComplaints(data.complaints || []);
+        } catch {
+          console.error('[fetchComplaints] Non-JSON response from server:', text.slice(0, 200));
+        }
+      } else {
+        const text = await res.text();
+        console.error('[fetchComplaints] Error response:', res.status, text.slice(0, 200));
       }
     } catch (err) {
       console.error(err);
@@ -94,7 +102,15 @@ export default function AdminComplaints() {
       const res = await fetch(`${API_BASE}${API_ENDPOINTS.GET_WORKER_WORKLOAD}`, {
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       });
-      if (res.ok) setWorkers(await res.json());
+      if (res.ok) {
+        const text = await res.text();
+        try {
+          const data = text ? JSON.parse(text) : [];
+          setWorkers(Array.isArray(data) ? data : []);
+        } catch {
+          console.error('[fetchWorkers] Non-JSON response:', text.slice(0, 200));
+        }
+      }
     } catch (err) {
       console.error('Failed to fetch workers:', err);
     }
@@ -143,7 +159,15 @@ export default function AdminComplaints() {
           reason: isReassign ? 'Admin reassignment' : undefined,
         }),
       });
-      const data = await res.json();
+
+      const text = await res.text();
+      let data = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        console.error('[handleAssign] Non-JSON response:', text.slice(0, 200));
+        throw new Error('Server returned an unexpected response. Please try again.');
+      }
 
       if (!res.ok) throw new Error(data.message || 'Assignment failed.');
 
@@ -166,7 +190,15 @@ export default function AdminComplaints() {
         method: 'POST',
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       });
-      const data = await res.json();
+
+      const text = await res.text();
+      let data = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        console.error('[handleAutoAssign] Non-JSON response:', text.slice(0, 200));
+        throw new Error('Server returned an unexpected response. Please try again.');
+      }
 
       if (!res.ok) throw new Error(data.message || 'No suitable worker found');
 

@@ -53,7 +53,17 @@ export const apiCall = async (url, options = {}) => {
     headers,
   });
 
-  const data = await response.json();
+  // Read as text first — avoids "Unexpected token" crash when server returns HTML
+  const text = await response.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    // Server returned non-JSON (HTML error page, proxy error, etc.)
+    console.error('[apiCall] Non-JSON response from', url, '→', text.slice(0, 200));
+    throw new Error(`Server returned an unexpected response (not JSON). Status: ${response.status}`);
+  }
+
   if (!response.ok) {
     throw new Error(data.message || 'API Error');
   }
